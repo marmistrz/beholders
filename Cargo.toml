@@ -4,3 +4,5 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+kzg = { git = "https://github.com/grandinetech/rust-kzg.git", package = "rust-kzg-blst" }
+kzg_traits = { git = "https://github.com/grandinetech/rust-kzg.git", package = "kzg" }
