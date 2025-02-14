@@ -8,6 +8,7 @@ version = "0.1.0"
 dependencies = [
  "kzg",
  "rust-kzg-blst",
+ "sha2",
 ]
 
 [[package]]

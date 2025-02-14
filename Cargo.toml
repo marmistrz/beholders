@@ -6,3 +6,4 @@ edition = "2021"
 [dependencies]
 kzg = { git = "https://github.com/grandinetech/rust-kzg.git", package = "rust-kzg-blst" }
 kzg_traits = { git = "https://github.com/grandinetech/rust-kzg.git", package = "kzg" }
+sha2 = "0.10.8"
