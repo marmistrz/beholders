@@ -86,7 +86,7 @@ impl<B: EcBackend, const M: usize> BaseProof<B, M> {
 
             check!(kzg_settings.check_proof_single(&com, &opening, x, &value)?);
 
-            let partial_pow = mine((), &self.schnorr.c, &self.schnorr.z, (), (), opening);
+            let partial_pow = mine(&prelude, &self.schnorr.c, &self.schnorr.z, (), (), opening);
             hash = bitxor(hash, partial_pow);
         }
 

@@ -25,7 +25,7 @@ pub(crate) fn derive_indices(i: usize, c: &impl Fr, m: usize) -> Vec<u64> {
 // val: 32 bytes
 // opening: 48 bytes
 pub(crate) fn mine(
-    prelude: (),
+    prelude: &[u8; 64],
     c: &impl Fr,
     z: &impl Fr,
     k: (),
