@@ -4,7 +4,7 @@ use sha2::{
     digest::{consts::U128, generic_array::GenericArray},
 };
 
-pub(crate) fn derive_indices(i: u64, c: &impl Fr, m: usize) -> Vec<u64> {
+pub(crate) fn derive_indices(i: usize, c: &impl Fr, m: usize) -> Vec<u64> {
     let mut state = [0u64; 8];
     let mut input = [0u8; 128];
     input[0..8].clone_from_slice(&i.to_le_bytes());

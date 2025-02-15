@@ -1,6 +1,6 @@
 use hashing::derive_indices;
 use itertools::izip;
-use kzg_traits::{EcBackend, Fr, KZGSettings};
+use kzg_traits::{EcBackend, Fr, KZGSettings, G1};
 
 mod hashing;
 mod schnorr;
@@ -19,13 +19,35 @@ struct Proof<B: EcBackend, const M: usize> {
     base_proofs: Vec<BaseProof<B, M>>,
 }
 
-impl<B: EcBackend, const M: usize> BaseProof<B, M> {}
+impl<B: EcBackend, const M: usize> Proof<B, M> {
+    fn prelude(&self) {
+        // FIXME compute this properly
+    }
+
+    fn verify(
+        &self,
+        pk: &PublicKey<B>,
+        com: &Commitment<B>,
+        kzg_settings: &B::KZGSettings,
+    ) -> Result<bool, String> {
+        let prelude = self.prelude();
+        for (i, base_proof) in self.base_proofs.iter().enumerate() {
+            if !base_proof.verify(i, prelude, pk, com, kzg_settings)? {
+                return Ok(false);
+            }
+        }
+
+        Ok(true)
+    }
+}
 
 impl<B: EcBackend, const M: usize> BaseProof<B, M> {
     fn verify(
         &self,
-        pk: PublicKey<B>,
-        com: Commitment<B>,
+        fisch_iter: usize,
+        prelude: (), // FIXME
+        pk: &PublicKey<B>,
+        com: &Commitment<B>,
         kzg_settings: &B::KZGSettings,
     ) -> Result<bool, String> {
         if !self.schnorr.verify(&pk) {
@@ -33,7 +55,6 @@ impl<B: EcBackend, const M: usize> BaseProof<B, M> {
         }
         // Check the PoW
         // Compute the indices
-        let fisch_iter = 1; // FIXME support multiple Fischlin iterations
         let indices = derive_indices(fisch_iter, &self.schnorr.c, 8);
         let indices: [u64; 8] = indices.try_into().expect("FIXME support m != 8");
 
