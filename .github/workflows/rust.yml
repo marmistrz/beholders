@@ -1,0 +1,23 @@
+name: Rust
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+    - name: Build
+      run: cargo build
+    - name: Clippy
+      run: cargo clippy # -- -D warnings
+    - name: Test
+      run: cargo test
