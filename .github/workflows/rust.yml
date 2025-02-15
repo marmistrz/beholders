@@ -21,4 +21,4 @@ jobs:
     - name: Clippy
       run: cargo clippy # -- -D warnings
     - name: Test
-      run: cargo nextest run
+      run: cargo test
