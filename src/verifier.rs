@@ -2,10 +2,10 @@ use beholders::Proof;
 use kzg::eip_7594::BlstBackend;
 
 type Backend = BlstBackend;
-const NFISCH: usize = 8;
+const N_INDICES: usize = 8;
 
 fn main() {
-    let proof = Proof::<Backend, NFISCH> {
+    let proof = Proof::<Backend, N_INDICES> {
         base_proofs: vec![],
     };
     assert!(proof
