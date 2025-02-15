@@ -1,9 +1,14 @@
 use kzg_traits::{EcBackend, FFTFr, FFTSettings, Fr, Poly};
 
-pub(crate) fn interpolate<B: EcBackend>(settings: &B::FFTSettings, data: &[u64]) -> B::Poly {
-    let data = data.iter().map(|x| B::Fr::from_u64(*x)).collect::<Vec<_>>();
+pub(crate) fn interpolate<TFr, TFFT, TPoly>(settings: &TFFT, data: &[u64]) -> TPoly
+where
+    TFr: Fr,
+    TFFT: FFTSettings<TFr> + FFTFr<TFr>,
+    TPoly: Poly<TFr>,
+{
+    let data = data.iter().map(|x| TFr::from_u64(*x)).collect::<Vec<_>>();
     let coeffs = settings.fft_fr(data.as_slice(), true).unwrap();
-    Poly::from_coeffs(coeffs.as_slice())
+    TPoly::from_coeffs(coeffs.as_slice())
 }
 
 // pub(crate) fn stride<B: EcBackend>(settings: &B::FFTSettings, data: &[u64]) -> usize {
@@ -26,7 +31,7 @@ mod tests {
     use super::*;
     use kzg::{
         eip_7594::BlstBackend,
-        types::{fft_settings::FsFFTSettings, fr::FsFr, kzg_settings::FsKZGSettings},
+        types::{fft_settings::FsFFTSettings, fr::FsFr, kzg_settings::FsKZGSettings, poly::FsPoly},
         utils::generate_trusted_setup,
     };
     use kzg_traits::{FFTSettings, Fr, KZGSettings, Poly};
@@ -36,7 +41,7 @@ mod tests {
     fn test_interpolate() {
         let data = [4, 2137, 383, 4]; //, 5, 1, 5, 7];
         let fft_settings = FsFFTSettings::new(15).unwrap();
-        let poly = interpolate::<Backend>(&fft_settings, &data);
+        let poly: FsPoly = interpolate(&fft_settings, &data);
 
         for (i, orig) in data.iter().enumerate() {
             let root = get_point(&fft_settings, data.len(), i);
@@ -65,7 +70,7 @@ mod tests {
         //     load_trusted_setup_filename_rust(TRUSTED_SETUP_FILE).expect("loading trusted setup");
         let fft_settings = kzg_settings.get_fft_settings();
 
-        let poly = interpolate::<Backend>(&fft_settings, &data);
+        let poly = interpolate(fft_settings, &data);
         let com = kzg_settings.commit_to_poly(&poly).expect("commit");
 
         for (i, val) in data.iter().enumerate() {
