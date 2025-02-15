@@ -23,8 +23,16 @@ pub struct Proof<B: EcBackend, const M: usize> {
 }
 
 impl<B: EcBackend, const M: usize> Proof<B, M> {
-    fn prelude(&self) {
-        // FIXME compute this properly
+    fn prelude(&self) -> [u8; 64] {
+        use sha2::Digest;
+        // FIXME: we should hash more than just the a_i's
+        let a_i: Vec<u8> = self
+            .base_proofs
+            .iter()
+            .map(|x| x.schnorr.a.to_bytes())
+            .flatten()
+            .collect();
+        sha2::Sha512::digest(&a_i).into()
     }
 
     pub fn verify(
@@ -55,7 +63,7 @@ impl<B: EcBackend, const M: usize> BaseProof<B, M> {
     fn verify(
         &self,
         fisch_iter: usize,
-        prelude: (), // FIXME
+        prelude: [u8; 64], // FIXME type
         pk: &PublicKey<B>,
         com: &Commitment<B>,
         data_len: usize,
