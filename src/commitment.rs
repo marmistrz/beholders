@@ -1,4 +1,4 @@
-use kzg_traits::{EcBackend, FFTFr, FFTSettings, Fr, KZGSettings, Poly};
+use kzg_traits::{EcBackend, FFTFr, FFTSettings, Fr, Poly};
 
 pub(crate) fn interpolate<B: EcBackend>(settings: &B::FFTSettings, data: &[u64]) -> B::Poly {
     let data = data.iter().map(|x| B::Fr::from_u64(*x)).collect::<Vec<_>>();
