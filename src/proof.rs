@@ -82,7 +82,7 @@ impl<B: EcBackend, const M: usize> BaseProof<B, M> {
         // Verify openings and accumulate PoW
         for (idx, value, opening) in izip!(indices, self.data, &self.openings) {
             let value = B::Fr::from_u64(value);
-            let x = get_point::<B>(&fft_settings, data_len, idx as usize);
+            let x = get_point(fft_settings, data_len, idx as usize);
 
             check!(kzg_settings.check_proof_single(&com, &opening, x, &value)?);
 

@@ -11,11 +11,11 @@ pub(crate) fn interpolate<B: EcBackend>(settings: &B::FFTSettings, data: &[u64])
 //     (roots.len() - 1) / data.len()
 // }
 
-pub(crate) fn get_point<B: EcBackend>(
-    settings: &B::FFTSettings,
+pub(crate) fn get_point<TFr: Fr>(
+    settings: &impl FFTSettings<TFr>,
     data_len: usize,
     i: usize,
-) -> &B::Fr {
+) -> &TFr {
     let roots = settings.get_roots_of_unity();
     let stride = (roots.len() - 1) / data_len;
     &roots[i * stride]
@@ -38,11 +38,8 @@ mod tests {
         let fft_settings = FsFFTSettings::new(15).unwrap();
         let poly = interpolate::<Backend>(&fft_settings, &data);
 
-        let roots = &fft_settings.roots_of_unity;
-        let stride = (roots.len() - 1) / data.len();
-
         for (i, orig) in data.iter().enumerate() {
-            let root = roots[i * stride];
+            let root = get_point(&fft_settings, data.len(), i);
             let val = poly.eval(&root);
             assert_eq!(
                 val,
@@ -71,12 +68,9 @@ mod tests {
         let poly = interpolate::<Backend>(&fft_settings, &data);
         let com = kzg_settings.commit_to_poly(&poly).expect("commit");
 
-        let roots = &fft_settings.roots_of_unity;
-        let stride = (roots.len() - 1) / data.len();
-
         for (i, val) in data.iter().enumerate() {
             let value = FsFr::from_u64(*val);
-            let x = roots[i * stride];
+            let x = get_point(fft_settings, data.len(), i);
 
             assert_eq!(poly.eval(&x), value, "value");
             let proof = kzg_settings.compute_proof_single(&poly, &x).expect("prove");
@@ -84,7 +78,6 @@ mod tests {
                 .check_proof_single(&com, &proof, &x, &value)
                 .expect("verify");
             assert!(res, "Proof did not verify for i = {}, value = {}", i, val);
-            // assert_eq!(val, FsFr::from_u64(*orig), "root={:?} orig={} i={}", root, orig, i);
         }
     }
 
