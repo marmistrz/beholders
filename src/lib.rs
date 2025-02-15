@@ -1,13 +1,17 @@
-use hashing::derive_indices;
+use hashing::{derive_indices, mine, pow_pass, HashOutput};
 use itertools::izip;
 use kzg_traits::{EcBackend, Fr, KZGSettings, G1};
 
 mod hashing;
 mod schnorr;
+mod util;
 
 type Opening<B: EcBackend> = B::G1;
 type Commitment<B: EcBackend> = B::G1;
 use schnorr::{PublicKey, Schnorr};
+use util::bitxor;
+
+const BYTE_DIFFICULTY: usize = 2;
 
 struct BaseProof<B: EcBackend, const M: usize> {
     schnorr: Schnorr<B>, // (a, c, z)
@@ -42,6 +46,12 @@ impl<B: EcBackend, const M: usize> Proof<B, M> {
 }
 
 impl<B: EcBackend, const M: usize> BaseProof<B, M> {
+    fn check_pow(&self) -> bool {
+        let state = [0u64; 8];
+
+        true
+    }
+
     fn verify(
         &self,
         fisch_iter: usize,
@@ -50,22 +60,25 @@ impl<B: EcBackend, const M: usize> BaseProof<B, M> {
         com: &Commitment<B>,
         kzg_settings: &B::KZGSettings,
     ) -> Result<bool, String> {
-        if !self.schnorr.verify(&pk) {
-            return Ok(false);
-        }
-        // Check the PoW
+        check!(self.schnorr.verify(&pk));
+
         // Compute the indices
         let indices = derive_indices(fisch_iter, &self.schnorr.c, 8);
         let indices: [u64; 8] = indices.try_into().expect("FIXME support m != 8");
 
+        let mut hash = HashOutput::default();
         // Verify openings
         for (idx, value, opening) in izip!(indices, self.data, &self.openings) {
             let value = B::Fr::from_u64(value);
             let x = B::Fr::from_u64(idx); // FIXME properly compute x from idx
-            if !kzg_settings.check_proof_single(&com, &opening, &x, &value)? {
-                return Ok(false);
-            }
+
+            check!(kzg_settings.check_proof_single(&com, &opening, &x, &value)?);
+
+            let partial_pow = mine((), &self.schnorr.c, &self.schnorr.z, (), (), opening);
+            hash = bitxor(hash, partial_pow);
         }
+
+        check!(pow_pass(&hash, BYTE_DIFFICULTY));
 
         Ok(true)
     }

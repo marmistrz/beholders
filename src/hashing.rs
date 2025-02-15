@@ -4,6 +4,8 @@ use sha2::{
     digest::{consts::U128, generic_array::GenericArray},
 };
 
+pub(crate) type HashOutput = [u64; 8];
+
 pub(crate) fn derive_indices(i: usize, c: &impl Fr, m: usize) -> Vec<u64> {
     let mut state = [0u64; 8];
     let mut input = [0u8; 128];
@@ -22,9 +24,16 @@ pub(crate) fn derive_indices(i: usize, c: &impl Fr, m: usize) -> Vec<u64> {
 // k: 4/8 bytes
 // val: 32 bytes
 // opening: 48 bytes
-fn pow(prelude: (), c: &impl Fr, z: &impl Fr, k: (), val: (), opening: &impl G1) -> [u64; 8] {
+pub(crate) fn mine(
+    prelude: (),
+    c: &impl Fr,
+    z: &impl Fr,
+    k: (),
+    val: (),
+    opening: &impl G1,
+) -> HashOutput {
     // TODO finish this
-    let mut state = [0u64; 8];
+    let mut state: HashOutput = [0u64; 8];
     let mut input = [0u8; 128];
     // input[0..8].clone_from_slice(&.to_le_bytes());
     input[8..40].clone_from_slice(&opening.to_bytes());
@@ -34,7 +43,8 @@ fn pow(prelude: (), c: &impl Fr, z: &impl Fr, k: (), val: (), opening: &impl G1)
     state
 }
 
-fn pow_pass(hash_output: &[u64; 8], difficulty: usize) -> bool {
+// FIXME this should be bit difficulty, not byte difficulty
+pub(crate) fn pow_pass(hash_output: &HashOutput, difficulty: usize) -> bool {
     hash_output
         .iter()
         .map(|x| x.to_le_bytes())
