@@ -3,6 +3,15 @@ name = "beholders"
 version = "0.1.0"
 edition = "2021"
 
+[[bin]]
+name = "prover"
+path = "src/prover.rs"
+
+[[bin]]
+name = "verifier"
+path = "src/verifier.rs"
+
+
 [dependencies]
 itertools = "0.14.0"
 kzg = { git = "https://github.com/grandinetech/rust-kzg.git", package = "rust-kzg-blst" }
