@@ -78,7 +78,8 @@ impl<B: EcBackend, const M: usize> BaseProof<B, M> {
         let indices: [u64; 8] = indices.try_into().expect("FIXME support m != 8");
 
         let mut hash = HashOutput::default();
-        // Verify openings
+
+        // Verify openings and accumulate PoW
         for (idx, value, opening) in izip!(indices, self.data, &self.openings) {
             let value = B::Fr::from_u64(value);
             let x = get_point::<B>(&fft_settings, data_len, idx as usize);
@@ -89,6 +90,7 @@ impl<B: EcBackend, const M: usize> BaseProof<B, M> {
             hash = bitxor(hash, partial_pow);
         }
 
+        // Check PoW
         check!(pow_pass(&hash, BYTE_DIFFICULTY));
 
         Ok(true)
