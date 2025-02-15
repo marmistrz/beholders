@@ -12,14 +12,14 @@ type Commitment<B: EcBackend> = B::G1;
 
 const BYTE_DIFFICULTY: usize = 2;
 // TODO include beacon
-struct BaseProof<B: EcBackend, const M: usize> {
+pub struct BaseProof<B: EcBackend, const M: usize> {
     schnorr: Schnorr<B>, // (a, c, z)
     data: [u64; M],
     openings: [Opening<B>; M],
 }
 
-struct Proof<B: EcBackend, const M: usize> {
-    base_proofs: Vec<BaseProof<B, M>>,
+pub struct Proof<B: EcBackend, const M: usize> {
+    pub base_proofs: Vec<BaseProof<B, M>>,
 }
 
 impl<B: EcBackend, const M: usize> Proof<B, M> {
@@ -27,7 +27,7 @@ impl<B: EcBackend, const M: usize> Proof<B, M> {
         // FIXME compute this properly
     }
 
-    fn verify(
+    pub fn verify(
         &self,
         pk: &PublicKey<B>,
         com: &Commitment<B>,

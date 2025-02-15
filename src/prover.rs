@@ -1,16 +1,13 @@
 use std::time::Instant;
 
-use kzg::{
-    eip_4844::load_trusted_setup_filename_rust,
-    eip_7594::BlstBackend,
-};
+use kzg::{eip_4844::load_trusted_setup_filename_rust, eip_7594::BlstBackend};
 use kzg_traits::{EcBackend, FFTFr, FFTSettings, Fr, KZGSettings, Poly};
 
 const TRUSTED_SETUP_FILE: &str = "trusted_setup.txt";
 
 type Backend = BlstBackend;
 
-struct Prover<B: EcBackend> {
+pub(crate) struct Prover<B: EcBackend> {
     kzg_settings: B::KZGSettings,
     // interpolator: Interpolator<B>,
 }
