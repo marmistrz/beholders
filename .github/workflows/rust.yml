@@ -15,7 +15,6 @@ jobs:
       with:
         profile: minimal
         toolchain: stable
-        components: nextest
     - name: Build
       run: cargo build
     - name: Clippy

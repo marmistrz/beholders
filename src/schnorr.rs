@@ -1,5 +1,6 @@
 use kzg_traits::{EcBackend, Fr, G1Mul, KZGSettings, G1};
 pub(crate) type PublicKey<B: EcBackend> = B::G1;
+pub(crate) type SecretKey<B: EcBackend> = B::Fr;
 
 pub(crate) struct Schnorr<B: EcBackend> {
     pub(crate) a: B::G1,
@@ -28,8 +29,8 @@ impl<B: EcBackend> Schnorr<B> {
 
 #[cfg(test)]
 mod tests {
-    use kzg::{eip_7594::BlstBackend, types::fr::FsFr};
     use super::*;
+    use kzg::{eip_7594::BlstBackend, types::fr::FsFr};
     type Backend = BlstBackend;
 
     #[test]
