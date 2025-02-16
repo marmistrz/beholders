@@ -65,8 +65,24 @@ impl<B: EcBackend, const NFISCH: usize> Proof<B, NFISCH> {
         let a_i: Vec<_> = r_i.iter().map(|r| generator.mul(r)).collect();
 
         // TODO: prelude
+        let prelude = [0u8; 64];
 
-        for i in 0..NFISCH {}
+        for fisch_iter in 0..NFISCH {
+            for c in 0..MAXC {
+                // TODO check if direct add is faster
+                let c = B::Fr::from_u64(c);
+                let schnorr = Schnorr::<B>::prove(&sk, &r_i[fisch_iter], c.clone());
+
+                let indices = derive_indices(fisch_iter, &c, 8);
+                let indices: [u64; 8] = indices.try_into().expect("FIXME support m != 8");
+
+                let mut hash = HashOutput::default();
+                for idx in indices {
+                    let partial_pow = mine(&prelude, &schnorr, (), (), &openings[0]);
+                    hash = bitxor(hash, partial_pow);
+                }
+            }
+        }
     }
 }
 
@@ -103,7 +119,7 @@ impl<B: EcBackend, const NFISCH: usize> BaseProof<B, NFISCH> {
 
             check!(kzg_settings.check_proof_single(&com, &opening, x, &value)?);
 
-            let partial_pow = mine(&prelude, &self.schnorr.c, &self.schnorr.z, (), (), opening);
+            let partial_pow = mine(&prelude, &self.schnorr, (), (), opening);
             hash = bitxor(hash, partial_pow);
         }
 
@@ -111,26 +127,5 @@ impl<B: EcBackend, const NFISCH: usize> BaseProof<B, NFISCH> {
         check!(pow_pass(&hash, BYTE_DIFFICULTY));
 
         Ok(true)
-    }
-
-    fn prove(fisch_iter: usize, prelude: &Prelude, sk: SecretKey<B>, data: &[u64]) {
-        let generator = B::G1::generator();
-        // Compute the openings
-        let mut openings: Vec<Opening<B>> = Vec::new();
-
-        // Compute the Schnorr commitment
-        let r_i: Vec<_> = (0..NFISCH).map(|_| B::Fr::rand()).collect();
-        let a_i: Vec<_> = r_i.iter().map(|r| generator.mul(r)).collect();
-
-        // TODO: prelude
-
-        for c in 0..MAXC {
-            // TODO check if direct add is faster
-            let c = B::Fr::from_u64(c);
-            let schnorr = Schnorr::<B>::prove(&sk, &r_i[i], c.clone());
-
-            let indices = derive_indices(fisch_iter, &c, 8);
-            let indices: [u64; 8] = indices.try_into().expect("FIXME support m != 8");
-        }
     }
 }

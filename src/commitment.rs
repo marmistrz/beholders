@@ -1,4 +1,4 @@
-use kzg_traits::{EcBackend, FFTFr, FFTSettings, Fr, Poly};
+use kzg_traits::{FFTFr, FFTSettings, Fr, Poly};
 
 pub(crate) fn interpolate<TFr, TFFT, TPoly>(settings: &TFFT, data: &[u64]) -> TPoly
 where
@@ -34,13 +34,13 @@ mod tests {
         types::{fft_settings::FsFFTSettings, fr::FsFr, kzg_settings::FsKZGSettings, poly::FsPoly},
         utils::generate_trusted_setup,
     };
-    use kzg_traits::{FFTSettings, Fr, KZGSettings, Poly};
+    use kzg_traits::{EcBackend, FFTSettings, Fr, KZGSettings, Poly};
     type Backend = BlstBackend;
 
     #[test]
     fn test_interpolate() {
         let data = [4, 2137, 383, 4]; //, 5, 1, 5, 7];
-        let fft_settings = FsFFTSettings::new(15).unwrap();
+        let fft_settings = <Backend as EcBackend>::FFTSettings::new(15).unwrap();
         let poly: FsPoly = interpolate(&fft_settings, &data);
 
         for (i, orig) in data.iter().enumerate() {

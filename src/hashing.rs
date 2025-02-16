@@ -1,8 +1,10 @@
-use kzg_traits::{Fr, G1};
+use kzg_traits::{EcBackend, Fr, G1};
 use sha2::{
     compress512,
     digest::{consts::U128, generic_array::GenericArray},
 };
+
+use crate::schnorr::Schnorr;
 
 pub(crate) type HashOutput = [u64; 8];
 
@@ -24,10 +26,9 @@ pub(crate) fn derive_indices(i: usize, c: &impl Fr, m: usize) -> Vec<u64> {
 // k: 4/8 bytes
 // val: 32 bytes
 // opening: 48 bytes
-pub(crate) fn mine(
+pub(crate) fn mine<B: EcBackend>(
     prelude: &[u8; 64],
-    c: &impl Fr,
-    z: &impl Fr,
+    schnorr: &Schnorr<B>,
     k: (),
     val: (),
     opening: &impl G1,
