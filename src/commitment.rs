@@ -99,6 +99,7 @@ mod tests {
         let fs = FsFFTSettings::new(4).unwrap();
         let kzg_settings: FsKZGSettings = FsKZGSettings::new(&s1, &s2, &s3, &fs, 7).unwrap();
 
+        // FIXME: this should work with the Ethereum trusted setup
         // let kzg_settings =
         //     load_trusted_setup_filename_rust(TRUSTED_SETUP_FILE).expect("loading trusted setup");
         let fft_settings = kzg_settings.get_fft_settings();
