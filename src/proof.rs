@@ -125,7 +125,7 @@ impl<B: EcBackend, const M: usize> BaseProof<B, M> {
         Ok(true)
     }
 
-    fn prove(
+    pub fn prove(
         fisch_iter: usize,
         prelude: Prelude,
         openings: &[Opening<B>],

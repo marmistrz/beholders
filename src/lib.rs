@@ -1,6 +1,6 @@
-mod commitment;
+pub mod commitment;
 mod hashing;
-mod proof;
+pub mod proof;
 mod schnorr;
 mod util;
 

@@ -24,7 +24,7 @@ pub(crate) fn get_point<TFr: Fr>(
 }
 
 // TODO use fk20
-pub(crate) fn open_all<B: EcBackend>(
+pub fn open_all<B: EcBackend>(
     kzg_settings: &B::KZGSettings,
     data: &[u64],
 ) -> Result<Vec<Opening<B>>, String> {
@@ -53,6 +53,26 @@ mod tests {
     #[test]
     fn test_interpolate() {
         let data = [4, 2137, 383, 4]; //, 5, 1, 5, 7];
+        let fft_settings = <Backend as EcBackend>::FFTSettings::new(15).unwrap();
+        let poly: FsPoly = interpolate(&fft_settings, &data);
+
+        for (i, orig) in data.iter().enumerate() {
+            let root = get_point(&fft_settings, data.len(), i);
+            let val = poly.eval(root);
+            assert_eq!(
+                val,
+                FsFr::from_u64(*orig),
+                "root={:?} orig={} i={}",
+                root,
+                orig,
+                i
+            );
+        }
+    }
+
+    #[test]
+    fn test_interpolate_long() {
+        let data = [0; 64]; //, 5, 1, 5, 7];
         let fft_settings = <Backend as EcBackend>::FFTSettings::new(15).unwrap();
         let poly: FsPoly = interpolate(&fft_settings, &data);
 
