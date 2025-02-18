@@ -7,7 +7,7 @@ use crate::hashing::{derive_indices, individual_hash, pow_pass, prelude, HashOut
 use crate::schnorr::{PublicKey, Schnorr, SecretKey};
 use crate::util::bitxor;
 
-type Commitment<B: EcBackend> = B::G1;
+type Commitment<B> = <B as EcBackend>::G1;
 
 const BYTE_DIFFICULTY: usize = 1;
 const MAXC: u64 = u16::MAX as u64;

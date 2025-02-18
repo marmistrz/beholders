@@ -2,7 +2,7 @@ use std::time::Instant;
 
 use beholders::Proof;
 use kzg::{eip_4844::load_trusted_setup_filename_rust, eip_7594::BlstBackend, types::fr::FsFr};
-use kzg_traits::{EcBackend, FFTFr, FFTSettings, Fr, KZGSettings, Poly};
+use kzg_traits::Fr;
 
 const TRUSTED_SETUP_FILE: &str = "trusted_setup.txt";
 

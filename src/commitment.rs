@@ -1,6 +1,6 @@
 use kzg_traits::{EcBackend, FFTFr, FFTSettings, Fr, KZGSettings, Poly};
 
-pub(crate) type Opening<B: EcBackend> = B::G1;
+pub(crate) type Opening<B> = <B as EcBackend>::G1;
 
 pub(crate) fn interpolate<TFr, TFFT, TPoly>(settings: &TFFT, data: &[u64]) -> TPoly
 where

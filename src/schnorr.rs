@@ -1,17 +1,12 @@
-use kzg_traits::{EcBackend, Fr, G1Mul, KZGSettings, G1};
-pub(crate) type PublicKey<B: EcBackend> = B::G1;
-pub(crate) type SecretKey<B: EcBackend> = B::Fr;
+use kzg_traits::{EcBackend, Fr, G1Mul, G1};
+pub(crate) type PublicKey<B> = <B as EcBackend>::G1;
+pub(crate) type SecretKey<B> = <B as EcBackend>::Fr;
 
 #[derive(Debug)]
 pub(crate) struct Schnorr<B: EcBackend> {
     pub(crate) a: B::G1,
     pub(crate) c: B::Fr,
     pub(crate) z: B::Fr,
-}
-
-struct BareSchnorr<B: EcBackend> {
-    c: B::Fr,
-    z: B::Fr,
 }
 
 impl<B: EcBackend> Schnorr<B> {
@@ -22,8 +17,8 @@ impl<B: EcBackend> Schnorr<B> {
 
     pub fn prove(sk: &B::Fr, r: &B::Fr, c: B::Fr) -> Self {
         let g = B::G1::generator();
-        let a = g.mul(&r);
-        let z = r.add(&c.mul(&sk));
+        let a = g.mul(r);
+        let z = r.add(&c.mul(sk));
         Self { a, c, z }
     }
 }
