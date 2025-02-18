@@ -1,93 +1,32 @@
 use std::time::Instant;
 
-use kzg::{eip_4844::load_trusted_setup_filename_rust, eip_7594::BlstBackend};
+use beholders::Proof;
+use kzg::{eip_4844::load_trusted_setup_filename_rust, eip_7594::BlstBackend, types::fr::FsFr};
 use kzg_traits::{EcBackend, FFTFr, FFTSettings, Fr, KZGSettings, Poly};
 
 const TRUSTED_SETUP_FILE: &str = "trusted_setup.txt";
 
 type Backend = BlstBackend;
 
-pub(crate) struct Prover<B: EcBackend> {
-    kzg_settings: B::KZGSettings,
-    // interpolator: Interpolator<B>,
-}
-
-// struct Interpolator<B: EcBackend> {
-//     fft_settings: B::FFTSettings,
-// }
-
-// impl<B: EcBackend> Interpolator<B> {
-//     fn new(log_max_len: usize) -> Result<Self, String> {
-//         let fft_settings = B::FFTSettings::new(log_max_len)?;
-//         Ok(Self { fft_settings })
-//     }
-
-//     fn interpolate(&self, data: &[u64]) -> B::Poly {
-//         let data = data.iter().map(|x| B::Fr::from_u64(*x)).collect::<Vec<_>>();
-//         let coeffs = self.fft_settings.fft_fr(data.as_slice(), true).unwrap();
-//         Poly::from_coeffs(coeffs.as_slice())
-//     }
-// }
-
-impl<B: EcBackend> Prover<B> {
-    fn new(kzg_settings: B::KZGSettings) -> Result<Self, String> {
-        // let interpolator = Interpolator::new(log_max_len)?;
-        Ok(Self { kzg_settings })
-    }
-
-    fn prove(&self, data: &[u64]) {
-        let interdata = InterpolatedData::<B>::new(&self.kzg_settings.get_fft_settings(), data);
-        // let poly = interpolate::<B>(self.kzg_settings.get_fft_settings(), data);
-        // let commitment = self.kzg_settings.commit_to_poly(&poly);
-        for (i, val) in data.iter().enumerate() {
-            // let proof = self.kzg_settings.compute_proof_single(&poly, i as u64);
-        }
-        println!("Hello, world!");
-    }
-}
-
 fn main() {
-    let data = [1, 2, 3, 4];
-    let start = Instant::now();
-    let trusted_setup =
+    let start: Instant = Instant::now();
+    let kzg_settings =
         load_trusted_setup_filename_rust(TRUSTED_SETUP_FILE).expect("loading trusted setup");
-    let prover = Prover::<Backend>::new(trusted_setup).unwrap();
     let duration = start.elapsed();
-
     println!("Initialization time: {:?}", duration);
-    prover.prove(&data);
-}
+    println!("Proving...");
+    let start: Instant = Instant::now();
+    let data = [1, 2, 3, 4];
+    let sk = FsFr::from_u64(2137);
+    let _duration = Proof::<Backend, 8>::prove(&kzg_settings, sk, &data, 2)
+        .expect("KZG error")
+        .expect("Proof not found");
+    let duration = start.elapsed();
+    println!("Proving time: {:?}", duration);
 
-fn interpolate<B: EcBackend>(settings: &B::FFTSettings, data: &[u64]) -> B::Poly {
-    let data = data.iter().map(|x| B::Fr::from_u64(*x)).collect::<Vec<_>>();
-    let coeffs = settings.fft_fr(data.as_slice(), true).unwrap();
-    Poly::from_coeffs(coeffs.as_slice())
-}
+    // let prover = Prover::<Backend>::new(trusted_setup).unwrap();
+    // let duration = start.elapsed();
 
-struct InterpolatedData<'a, B: EcBackend> {
-    data: &'a [u64],
-    poly: B::Poly,
-    settings: &'a B::FFTSettings,
-}
-
-impl<'a, B: EcBackend> InterpolatedData<'a, B> {
-    fn new(settings: &'a B::FFTSettings, data: &'a [u64]) -> Self {
-        let poly = interpolate::<B>(settings, data);
-        Self {
-            data,
-            poly,
-            settings,
-        }
-    }
-
-    fn stride(&self) -> usize {
-        let roots = self.settings.get_roots_of_unity();
-        (roots.len() - 1) / self.data.len()
-    }
-
-    fn get(&self, i: usize) {
-        let roots = self.settings.get_roots_of_unity();
-        let stride = self.stride();
-        let root = roots.get(i * stride).unwrap();
-    }
+    // println!("Initialization time: {:?}", duration);
+    // prover.prove(&data);
 }

@@ -2,6 +2,7 @@ use kzg_traits::{EcBackend, Fr, G1Mul, KZGSettings, G1};
 pub(crate) type PublicKey<B: EcBackend> = B::G1;
 pub(crate) type SecretKey<B: EcBackend> = B::Fr;
 
+#[derive(Debug)]
 pub(crate) struct Schnorr<B: EcBackend> {
     pub(crate) a: B::G1,
     pub(crate) c: B::Fr,

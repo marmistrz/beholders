@@ -1,4 +1,5 @@
 use kzg_traits::{EcBackend, Fr, G1};
+// use log::debug;
 use sha2::{
     compress512,
     digest::{consts::U128, generic_array::GenericArray},
@@ -17,7 +18,7 @@ pub(crate) fn prelude<TG1: G1>(a_i: impl Iterator<Item = TG1>) -> Prelude {
     bytemuck::cast(hash)
 }
 
-pub(crate) fn derive_indices(i: usize, c: &impl Fr, m: usize) -> Vec<usize> {
+pub(crate) fn derive_indices(i: usize, c: &impl Fr, m: usize, data_len: usize) -> Vec<usize> {
     let mut state = [0u64; 8];
     let mut input = [0u8; 128];
     input[0..8].clone_from_slice(&i.to_le_bytes());
@@ -27,7 +28,10 @@ pub(crate) fn derive_indices(i: usize, c: &impl Fr, m: usize) -> Vec<usize> {
     compress512(&mut state, &[*blocks]);
 
     assert_eq!(m, 8, "FIXME support m != 8");
-    Vec::from(state.map(|x| x as usize))
+    Vec::from(state.map(|x| {
+        let x: usize = x.try_into().unwrap();
+        x % data_len
+    }))
 }
 
 // prelude: 32 bytes
@@ -44,7 +48,6 @@ pub(crate) fn individual_hash<B: EcBackend>(
     val: u64,
     opening: &impl G1,
 ) -> HashOutput {
-    // TODO finish this
     let mut state: HashOutput = prelude;
     let mut input = [0u8; 128];
 
@@ -105,8 +108,10 @@ mod tests {
         let i = 1;
         let c = FsFr::one();
         let m = 8;
-        let indices = derive_indices(i, &c, m);
+        let data_len = 10;
+        let indices = derive_indices(i, &c, m, data_len);
         assert_eq!(indices.len(), m);
+        indices.iter().for_each(|&x| assert!(x < data_len));
     }
 
     // #[test]

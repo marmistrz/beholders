@@ -1,16 +1,10 @@
 use std::ops::BitXor;
 
-use sha2::digest::typenum::Bit;
-
 pub(crate) fn bitxor<T: BitXor, const N: usize>(
     x: [T; N],
     y: [T; N],
 ) -> [<T as BitXor>::Output; N] {
-    let vec = x
-        .into_iter()
-        .zip(y.into_iter())
-        .map(|(a, b)| a ^ b)
-        .collect::<Vec<_>>();
+    let vec = x.into_iter().zip(y).map(|(a, b)| a ^ b).collect::<Vec<_>>();
     match vec.try_into() {
         Ok(arr) => arr,
         Err(_) => unreachable!(),

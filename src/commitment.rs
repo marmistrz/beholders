@@ -1,4 +1,6 @@
-use kzg_traits::{FFTFr, FFTSettings, Fr, Poly};
+use kzg_traits::{EcBackend, FFTFr, FFTSettings, Fr, KZGSettings, Poly};
+
+pub(crate) type Opening<B: EcBackend> = B::G1;
 
 pub(crate) fn interpolate<TFr, TFFT, TPoly>(settings: &TFFT, data: &[u64]) -> TPoly
 where
@@ -26,7 +28,21 @@ pub(crate) fn get_point<TFr: Fr>(
     &roots[i * stride]
 }
 
-// pub(crate) fn open_all<TFr: Fr>(poly: &impl Poly<TFr>) -> Vec<Opening<B>> {}
+// TODO use fk20
+pub(crate) fn open_all<B: EcBackend>(
+    kzg_settings: &B::KZGSettings,
+    data: &[u64],
+) -> Result<Vec<Opening<B>>, String> {
+    let fft_settings = kzg_settings.get_fft_settings();
+    let poly: B::Poly = interpolate(fft_settings, data);
+    data.iter()
+        .enumerate()
+        .map(|(i, _)| {
+            let x = get_point(fft_settings, data.len(), i);
+            kzg_settings.compute_proof_single(&poly, x)
+        })
+        .collect()
+}
 
 #[cfg(test)]
 mod tests {
