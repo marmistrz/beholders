@@ -40,7 +40,7 @@ impl<B: EcBackend, const NFISCH: usize> Proof<B, NFISCH> {
     ) -> Result<bool, String> {
         let prelude = self.prelude();
         for (i, base_proof) in self.base_proofs.iter().enumerate() {
-            if !base_proof.verify(i, &prelude, pk, com, data_len, kzg_settings)? {
+            if !base_proof.verify(i, prelude, pk, com, data_len, kzg_settings)? {
                 return Ok(false);
             }
         }
@@ -65,7 +65,7 @@ impl<B: EcBackend, const NFISCH: usize> Proof<B, NFISCH> {
             .map(|fisch_iter| {
                 BaseProof::<B, NFISCH>::prove(
                     fisch_iter,
-                    &prelude,
+                    prelude,
                     &openings,
                     &r_i[fisch_iter],
                     &sk,
@@ -81,7 +81,7 @@ impl<B: EcBackend, const NFISCH: usize> BaseProof<B, NFISCH> {
     fn verify(
         &self,
         fisch_iter: usize,
-        prelude: &Prelude,
+        prelude: Prelude,
         pk: &PublicKey<B>,
         com: &Commitment<B>,
         data_len: usize,
@@ -98,15 +98,18 @@ impl<B: EcBackend, const NFISCH: usize> BaseProof<B, NFISCH> {
         let mut hash = HashOutput::default();
 
         // Verify openings and accumulate PoW
-        for (idx, value, opening) in izip!(indices, self.data, &self.openings) {
-            let value = B::Fr::from_u64(value);
+        for ((k, idx), value, opening) in
+            izip!(indices.into_iter().enumerate(), self.data, &self.openings)
+        {
+            let k = k.try_into().unwrap();
+            let val = B::Fr::from_u64(value);
             let x = get_point(fft_settings, data_len, idx);
 
-            check!(kzg_settings.check_proof_single(com, opening, x, &value)?);
+            check!(kzg_settings.check_proof_single(com, opening, x, &val)?);
 
             // FIXME compute hash properly
-            // let partial_pow = individual_hash(prelude, &self.schnorr, (), (), opening);
-            // hash = bitxor(hash, partial_pow);
+            let partial_pow = individual_hash(prelude, &self.schnorr, k, value, opening);
+            hash = bitxor(hash, partial_pow);
         }
 
         // Check PoW
@@ -117,7 +120,7 @@ impl<B: EcBackend, const NFISCH: usize> BaseProof<B, NFISCH> {
 
     fn prove(
         fisch_iter: usize,
-        prelude: &Prelude,
+        prelude: Prelude,
         openings: &[Opening<B>],
         r: &B::Fr,
         sk: &SecretKey<B>,
@@ -130,23 +133,38 @@ impl<B: EcBackend, const NFISCH: usize> BaseProof<B, NFISCH> {
 
             let indices = derive_indices(fisch_iter, &c, 8);
             let indices: [usize; 8] = indices.try_into().expect("FIXME support m != 8");
-            let data_openings = indices.iter().map(|&i| (data[i], &openings[i]));
+            let data: Vec<_> = indices.iter().map(|&i| data[i]).collect();
+            let openings: Vec<_> = indices.iter().map(|&i| &openings[i]).collect();
 
             let mut hash = HashOutput::default();
-            for idx in indices.iter().zip(data_openings) {
-                // FIXME compute hash properly
-                // let partial_pow = individual_hash(&prelude, &schnorr, (), (), &openings[0]);
-                // hash = bitxor(hash, partial_pow);
+            for (k, (val, opening)) in izip!(data.iter(), openings.iter()).enumerate() {
+                let k = k.try_into().unwrap();
+                let partial_pow = individual_hash(prelude, &schnorr, k, *val, *opening);
+                hash = bitxor(hash, partial_pow);
             }
             if pow_pass(&hash, BYTE_DIFFICULTY) {
+                let openings: Vec<_> = openings.into_iter().cloned().collect();
                 return Some(BaseProof {
                     schnorr,
-                    data: todo!(),
-                    openings: todo!(), // [B::G1::zero(); 8],
+                    data: data.try_into().unwrap(),
+                    openings: openings.try_into().unwrap(), // [B::G1::zero(); 8],
                 });
             }
         }
 
         None
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use kzg::eip_7594::BlstBackend;
+
+    use super::*;
+    type Backend = BlstBackend;
+
+    // #[test]
+    // fn test_mining_works() {
+    //     let baseproof = BaseProof::<Backend>::prove();
+    // }
 }

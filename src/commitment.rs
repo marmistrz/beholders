@@ -26,6 +26,8 @@ pub(crate) fn get_point<TFr: Fr>(
     &roots[i * stride]
 }
 
+// pub(crate) fn open_all<TFr: Fr>(poly: &impl Poly<TFr>) -> Vec<Opening<B>> {}
+
 #[cfg(test)]
 mod tests {
     use super::*;
