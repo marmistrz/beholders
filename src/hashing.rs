@@ -7,8 +7,17 @@ use sha2::{
 use crate::schnorr::Schnorr;
 
 pub(crate) type HashOutput = [u64; 8];
+pub(crate) type Prelude = HashOutput;
 
-pub(crate) fn derive_indices(i: usize, c: &impl Fr, m: usize) -> Vec<u64> {
+pub(crate) fn prelude<TG1: G1>(a_i: impl Iterator<Item = TG1>) -> Prelude {
+    use sha2::Digest;
+    // FIXME: we should hash more than just the a_i's
+    let a_i: Vec<u8> = a_i.flat_map(|x| x.to_bytes()).collect();
+    let hash: [u8; 64] = sha2::Sha512::digest(&a_i).into();
+    bytemuck::cast(hash)
+}
+
+pub(crate) fn derive_indices(i: usize, c: &impl Fr, m: usize) -> Vec<usize> {
     let mut state = [0u64; 8];
     let mut input = [0u8; 128];
     input[0..8].clone_from_slice(&i.to_le_bytes());
@@ -18,45 +27,76 @@ pub(crate) fn derive_indices(i: usize, c: &impl Fr, m: usize) -> Vec<u64> {
     compress512(&mut state, &[*blocks]);
 
     assert_eq!(m, 8, "FIXME support m != 8");
-    Vec::from(state)
+    Vec::from(state.map(|x| x as usize))
 }
 
-// c: 16/32 bytes
+// prelude: 32 bytes
+// c: 32 bytes
 // z: 32 bytes
 // k: 4/8 bytes
 // val: 32 bytes
 // opening: 48 bytes
-pub(crate) fn mine<B: EcBackend>(
-    prelude: &[u8; 64],
+// TOTAL:
+pub(crate) fn individual_hash<B: EcBackend>(
+    prelude: Prelude,
     schnorr: &Schnorr<B>,
-    k: (),
-    val: (),
+    k: u8,
+    val: u64,
     opening: &impl G1,
 ) -> HashOutput {
     // TODO finish this
-    let mut state: HashOutput = [0u64; 8];
+    let mut state: HashOutput = prelude;
     let mut input = [0u8; 128];
+
+    let Schnorr { c, z, .. } = schnorr;
+
     // input[0..8].clone_from_slice(&.to_le_bytes());
-    input[8..40].clone_from_slice(&opening.to_bytes());
+    input[0..48].clone_from_slice(&opening.to_bytes());
+    input[48..80].clone_from_slice(&c.to_bytes());
+    input[80..112].clone_from_slice(&z.to_bytes());
+    input[112..120].clone_from_slice(&val.to_le_bytes());
+    input[120] = k;
 
     let blocks: &GenericArray<_, U128> = GenericArray::from_slice(&input); //[c.to_bytes(), pad].iter().flatten().into();
     compress512(&mut state, &[*blocks]);
     state
 }
 
+// pub(crate) fn xorhash<'a, TG1, B: EcBackend>(
+//     prelude: &Prelude,
+//     data: impl Iterator<Item = (usize, u64, &'a TG1, &'a TG1)>,
+// ) -> HashOutput
+// where
+//     TG1: G1 + 'a,
+// {
+//     let state = HashOutput::default();
+//     for (idx, value, point, opening) in data {
+//         let value = B::Fr::from_u64(value);
+//         let x = get_point(idx);
+
+//         check!(kzg_settings.check_proof_single(&com, &opening, x, &value)?);
+
+//         let partial_pow = individual_hash(&prelude, &self.schnorr, (), (), opening);
+//         hash = bitxor(hash, partial_pow);
+//     }
+//     state
+// }
+
 // FIXME this should be bit difficulty, not byte difficulty
 pub(crate) fn pow_pass(hash_output: &HashOutput, difficulty: usize) -> bool {
     hash_output
         .iter()
-        .map(|x| x.to_le_bytes())
-        .flatten()
+        .flat_map(|x| x.to_le_bytes())
         .take(difficulty)
         .all(|x| x == 0)
 }
 
 #[cfg(test)]
 mod tests {
-    use kzg::types::fr::FsFr;
+    use kzg::{
+        eip_7594::BlstBackend,
+        types::{fr::FsFr, g1::FsG1},
+    };
 
     use super::*;
 
@@ -93,5 +133,17 @@ mod tests {
         assert!(pow_pass(&hash_output, 0));
         assert!(pow_pass(&hash_output, 1));
         assert!(!pow_pass(&hash_output, 2));
+    }
+
+    #[test]
+    fn test_invididual_hash() {
+        let schnorr = Schnorr::<BlstBackend>::prove(
+            &Default::default(),
+            &Default::default(),
+            Default::default(),
+        );
+        let prelude = [0u64; 8];
+        let opening = FsG1::generator();
+        individual_hash(prelude, &schnorr, 0, 0, &opening);
     }
 }

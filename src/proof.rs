@@ -3,13 +3,12 @@ use kzg_traits::{EcBackend, Fr, G1Mul, KZGSettings, G1};
 
 use crate::check;
 use crate::commitment::get_point;
-use crate::hashing::{derive_indices, mine, pow_pass, HashOutput};
+use crate::hashing::{derive_indices, individual_hash, pow_pass, prelude, HashOutput, Prelude};
 use crate::schnorr::{PublicKey, Schnorr, SecretKey};
 use crate::util::bitxor;
 
 type Opening<B: EcBackend> = B::G1;
 type Commitment<B: EcBackend> = B::G1;
-type Prelude = [u8; 64]; // FIXME type
 
 const BYTE_DIFFICULTY: usize = 2;
 const MAXC: u64 = u16::MAX as u64;
@@ -26,16 +25,10 @@ pub struct Proof<B: EcBackend, const M: usize> {
 }
 
 impl<B: EcBackend, const NFISCH: usize> Proof<B, NFISCH> {
-    fn prelude(&self) -> [u8; 64] {
-        use sha2::Digest;
+    fn prelude(&self) -> Prelude {
         // FIXME: we should hash more than just the a_i's
-        let a_i: Vec<u8> = self
-            .base_proofs
-            .iter()
-            .map(|x| x.schnorr.a.to_bytes())
-            .flatten()
-            .collect();
-        sha2::Sha512::digest(&a_i).into()
+        let a_i = self.base_proofs.iter().map(|x| x.schnorr.a.clone());
+        prelude(a_i)
     }
 
     pub fn verify(
@@ -47,7 +40,7 @@ impl<B: EcBackend, const NFISCH: usize> Proof<B, NFISCH> {
     ) -> Result<bool, String> {
         let prelude = self.prelude();
         for (i, base_proof) in self.base_proofs.iter().enumerate() {
-            if !base_proof.verify(i, prelude, pk, com, data_len, kzg_settings)? {
+            if !base_proof.verify(i, &prelude, pk, com, data_len, kzg_settings)? {
                 return Ok(false);
             }
         }
@@ -55,48 +48,40 @@ impl<B: EcBackend, const NFISCH: usize> Proof<B, NFISCH> {
         Ok(true)
     }
 
-    fn prove(sk: SecretKey<B>, data: &[u64]) {
+    fn prove(sk: SecretKey<B>, data: &[u64]) -> Option<Self> {
         let generator = B::G1::generator();
         // Compute the openings
-        let mut openings: Vec<Opening<B>> = Vec::new();
+        let openings: Vec<Opening<B>> = Vec::new();
+        // TODO
 
         // Compute the Schnorr commitment
         let r_i: Vec<_> = (0..NFISCH).map(|_| B::Fr::rand()).collect();
-        let a_i: Vec<_> = r_i.iter().map(|r| generator.mul(r)).collect();
+        let a_i = r_i.iter().map(|r| generator.mul(r));
 
-        // TODO: prelude
-        let prelude = [0u8; 64];
+        // TODO: prelude should contain more
+        let prelude = prelude(a_i);
 
-        for fisch_iter in 0..NFISCH {
-            for c in 0..MAXC {
-                // TODO check if direct add is faster
-                let c = B::Fr::from_u64(c);
-                let schnorr = Schnorr::<B>::prove(&sk, &r_i[fisch_iter], c.clone());
-
-                let indices = derive_indices(fisch_iter, &c, 8);
-                let indices: [u64; 8] = indices.try_into().expect("FIXME support m != 8");
-
-                let mut hash = HashOutput::default();
-                for idx in indices {
-                    let partial_pow = mine(&prelude, &schnorr, (), (), &openings[0]);
-                    hash = bitxor(hash, partial_pow);
-                }
-            }
-        }
+        let proofs: Option<Vec<_>> = (0..NFISCH)
+            .map(|fisch_iter| {
+                BaseProof::<B, NFISCH>::prove(
+                    fisch_iter,
+                    &prelude,
+                    &openings,
+                    &r_i[fisch_iter],
+                    &sk,
+                    data,
+                )
+            })
+            .collect();
+        proofs.map(|base_proofs| Self { base_proofs })
     }
 }
 
 impl<B: EcBackend, const NFISCH: usize> BaseProof<B, NFISCH> {
-    fn check_pow(&self) -> bool {
-        let state = [0u64; 8];
-
-        true
-    }
-
     fn verify(
         &self,
         fisch_iter: usize,
-        prelude: Prelude,
+        prelude: &Prelude,
         pk: &PublicKey<B>,
         com: &Commitment<B>,
         data_len: usize,
@@ -104,28 +89,64 @@ impl<B: EcBackend, const NFISCH: usize> BaseProof<B, NFISCH> {
     ) -> Result<bool, String> {
         let fft_settings = kzg_settings.get_fft_settings();
 
-        check!(self.schnorr.verify(&pk));
+        check!(self.schnorr.verify(pk));
 
         // Compute the indices
         let indices = derive_indices(fisch_iter, &self.schnorr.c, 8);
-        let indices: [u64; 8] = indices.try_into().expect("FIXME support m != 8");
+        let indices: [usize; 8] = indices.try_into().expect("FIXME support m != 8");
 
         let mut hash = HashOutput::default();
 
         // Verify openings and accumulate PoW
         for (idx, value, opening) in izip!(indices, self.data, &self.openings) {
             let value = B::Fr::from_u64(value);
-            let x = get_point(fft_settings, data_len, idx as usize);
+            let x = get_point(fft_settings, data_len, idx);
 
-            check!(kzg_settings.check_proof_single(&com, &opening, x, &value)?);
+            check!(kzg_settings.check_proof_single(com, opening, x, &value)?);
 
-            let partial_pow = mine(&prelude, &self.schnorr, (), (), opening);
-            hash = bitxor(hash, partial_pow);
+            // FIXME compute hash properly
+            // let partial_pow = individual_hash(prelude, &self.schnorr, (), (), opening);
+            // hash = bitxor(hash, partial_pow);
         }
 
         // Check PoW
         check!(pow_pass(&hash, BYTE_DIFFICULTY));
 
         Ok(true)
+    }
+
+    fn prove(
+        fisch_iter: usize,
+        prelude: &Prelude,
+        openings: &[Opening<B>],
+        r: &B::Fr,
+        sk: &SecretKey<B>,
+        data: &[u64],
+    ) -> Option<Self> {
+        for c in 0..MAXC {
+            // TODO check if direct add is faster
+            let c = B::Fr::from_u64(c);
+            let schnorr = Schnorr::<B>::prove(sk, r, c.clone());
+
+            let indices = derive_indices(fisch_iter, &c, 8);
+            let indices: [usize; 8] = indices.try_into().expect("FIXME support m != 8");
+            let data_openings = indices.iter().map(|&i| (data[i], &openings[i]));
+
+            let mut hash = HashOutput::default();
+            for idx in indices.iter().zip(data_openings) {
+                // FIXME compute hash properly
+                // let partial_pow = individual_hash(&prelude, &schnorr, (), (), &openings[0]);
+                // hash = bitxor(hash, partial_pow);
+            }
+            if pow_pass(&hash, BYTE_DIFFICULTY) {
+                return Some(BaseProof {
+                    schnorr,
+                    data: todo!(),
+                    openings: todo!(), // [B::G1::zero(); 8],
+                });
+            }
+        }
+
+        None
     }
 }

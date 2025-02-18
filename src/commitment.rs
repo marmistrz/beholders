@@ -45,7 +45,7 @@ mod tests {
 
         for (i, orig) in data.iter().enumerate() {
             let root = get_point(&fft_settings, data.len(), i);
-            let val = poly.eval(&root);
+            let val = poly.eval(root);
             assert_eq!(
                 val,
                 FsFr::from_u64(*orig),
@@ -77,10 +77,10 @@ mod tests {
             let value = FsFr::from_u64(*val);
             let x = get_point(fft_settings, data.len(), i);
 
-            assert_eq!(poly.eval(&x), value, "value");
-            let proof = kzg_settings.compute_proof_single(&poly, &x).expect("prove");
+            assert_eq!(poly.eval(x), value, "value");
+            let proof = kzg_settings.compute_proof_single(&poly, x).expect("prove");
             let res = kzg_settings
-                .check_proof_single(&com, &proof, &x, &value)
+                .check_proof_single(&com, &proof, x, &value)
                 .expect("verify");
             assert!(res, "Proof did not verify for i = {}, value = {}", i, val);
         }
