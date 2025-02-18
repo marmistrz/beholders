@@ -13,11 +13,6 @@ where
     TPoly::from_coeffs(coeffs.as_slice())
 }
 
-// pub(crate) fn stride<B: EcBackend>(settings: &B::FFTSettings, data: &[u64]) -> usize {
-//     let roots = settings.get_roots_of_unity();
-//     (roots.len() - 1) / data.len()
-// }
-
 pub(crate) fn get_point<TFr: Fr>(
     settings: &impl FFTSettings<TFr>,
     data_len: usize,
