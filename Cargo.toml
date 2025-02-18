@@ -15,8 +15,8 @@ path = "src/verifier.rs"
 [dependencies]
 bytemuck = "1.21.0"
 itertools = "0.14.0"
-kzg = { git = "https://github.com/grandinetech/rust-kzg.git", package = "rust-kzg-blst" }
-kzg_traits = { git = "https://github.com/grandinetech/rust-kzg.git", package = "kzg" }
+kzg = { git = "https://github.com/marmistrz/rust-kzg.git", package = "rust-kzg-blst" }
+kzg_traits = { git = "https://github.com/marmistrz/rust-kzg.git", package = "kzg" }
 sha2 = { version = "0.10.8", features = ["compress"] }
 
 [dev-dependencies]

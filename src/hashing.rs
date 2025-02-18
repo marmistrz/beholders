@@ -24,7 +24,7 @@ pub(crate) fn derive_indices(i: usize, c: &impl Fr, m: usize, data_len: usize) -
     input[0..8].clone_from_slice(&i.to_le_bytes());
     input[8..40].clone_from_slice(&c.to_bytes());
 
-    let blocks: &GenericArray<_, U128> = GenericArray::from_slice(&input); //[c.to_bytes(), pad].iter().flatten().into();
+    let blocks: &GenericArray<_, U128> = GenericArray::from_slice(&input);
     compress512(&mut state, &[*blocks]);
 
     assert_eq!(m, 8, "FIXME support m != 8");
@@ -64,26 +64,6 @@ pub(crate) fn individual_hash<B: EcBackend>(
     compress512(&mut state, &[*blocks]);
     state
 }
-
-// pub(crate) fn xorhash<'a, TG1, B: EcBackend>(
-//     prelude: &Prelude,
-//     data: impl Iterator<Item = (usize, u64, &'a TG1, &'a TG1)>,
-// ) -> HashOutput
-// where
-//     TG1: G1 + 'a,
-// {
-//     let state = HashOutput::default();
-//     for (idx, value, point, opening) in data {
-//         let value = B::Fr::from_u64(value);
-//         let x = get_point(idx);
-
-//         check!(kzg_settings.check_proof_single(&com, &opening, x, &value)?);
-
-//         let partial_pow = individual_hash(&prelude, &self.schnorr, (), (), opening);
-//         hash = bitxor(hash, partial_pow);
-//     }
-//     state
-// }
 
 // FIXME this should be bit difficulty, not byte difficulty
 pub(crate) fn pow_pass(hash_output: &HashOutput, difficulty: usize) -> bool {
