@@ -3,6 +3,7 @@ use kzg::eip_7594::BlstBackend;
 
 type Backend = BlstBackend;
 const N_INDICES: usize = 8;
+const BYTE_DIFFICULTY: usize = 2;
 
 fn main() {
     let proof = Proof::<Backend, N_INDICES> {
@@ -13,7 +14,8 @@ fn main() {
             &Default::default(),
             &Default::default(),
             20,
-            &Default::default()
+            &Default::default(),
+            BYTE_DIFFICULTY,
         )
         .unwrap());
 }

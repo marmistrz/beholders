@@ -9,8 +9,7 @@ use crate::util::bitxor;
 
 type Commitment<B> = <B as EcBackend>::G1;
 
-const BYTE_DIFFICULTY: usize = 1;
-const MAXC: u64 = u16::MAX as u64;
+const MAXC: u64 = 32 * (u16::MAX as u64);
 
 // TODO include beacon
 pub struct BaseProof<B: EcBackend, const M: usize> {
@@ -36,10 +35,11 @@ impl<B: EcBackend, const M: usize> Proof<B, M> {
         com: &Commitment<B>,
         data_len: usize,
         kzg_settings: &B::KZGSettings,
+        byte_difficulty: usize,
     ) -> Result<bool, String> {
         let prelude = self.prelude();
         for (i, base_proof) in self.base_proofs.iter().enumerate() {
-            if !base_proof.verify(i, prelude, pk, com, data_len, kzg_settings)? {
+            if !base_proof.verify(i, prelude, pk, com, data_len, kzg_settings, byte_difficulty)? {
                 println!("Failed at base proof {}", i);
                 return Ok(false);
             }
@@ -53,6 +53,7 @@ impl<B: EcBackend, const M: usize> Proof<B, M> {
         sk: SecretKey<B>,
         data: &[u64],
         nfisch: usize,
+        byte_difficulty: usize,
     ) -> Result<Option<Self>, String> {
         let generator = B::G1::generator();
         // Compute the openings
@@ -74,6 +75,7 @@ impl<B: EcBackend, const M: usize> Proof<B, M> {
                     &r_i[fisch_iter],
                     &sk,
                     data,
+                    byte_difficulty,
                 )
             })
             .collect();
@@ -90,6 +92,7 @@ impl<B: EcBackend, const M: usize> BaseProof<B, M> {
         com: &Commitment<B>,
         data_len: usize,
         kzg_settings: &B::KZGSettings,
+        byte_difficulty: usize,
     ) -> Result<bool, String> {
         let fft_settings = kzg_settings.get_fft_settings();
 
@@ -117,7 +120,7 @@ impl<B: EcBackend, const M: usize> BaseProof<B, M> {
         }
 
         // Check PoW
-        check!(pow_pass(&hash, BYTE_DIFFICULTY));
+        check!(pow_pass(&hash, byte_difficulty));
 
         Ok(true)
     }
@@ -129,6 +132,7 @@ impl<B: EcBackend, const M: usize> BaseProof<B, M> {
         r: &B::Fr,
         sk: &SecretKey<B>,
         data: &[u64],
+        byte_difficulty: usize,
     ) -> Option<Self> {
         for c in 0..MAXC {
             // TODO check if direct add is faster
@@ -147,7 +151,7 @@ impl<B: EcBackend, const M: usize> BaseProof<B, M> {
 
                 hash = bitxor(hash, partial_pow);
             }
-            if pow_pass(&hash, BYTE_DIFFICULTY) {
+            if pow_pass(&hash, byte_difficulty) {
                 let openings: Vec<_> = openings.into_iter().cloned().collect();
                 return Some(BaseProof {
                     schnorr,
@@ -193,23 +197,41 @@ mod tests {
         let r = FsFr::from_u64(1337);
         let sk = SecretKey::<Backend>::from_u64(2137);
         let pk = g.mul(&sk);
+        let byte_difficulty = 1;
 
         let fisch_iter = 0;
         let prelude = [0; 8];
 
-        let proof = BaseProof::<Backend, M>::prove(fisch_iter, prelude, &openings, &r, &sk, &data)
-            .expect("No proof found");
+        let proof = BaseProof::<Backend, M>::prove(
+            fisch_iter,
+            prelude,
+            &openings,
+            &r,
+            &sk,
+            &data,
+            byte_difficulty,
+        )
+        .expect("No proof found");
 
         let poly = interpolate(kzg_settings.get_fft_settings(), &data);
         let com = kzg_settings.commit_to_poly(&poly).expect("commit");
         assert!(proof
-            .verify(fisch_iter, prelude, &pk, &com, data.len(), &kzg_settings)
+            .verify(
+                fisch_iter,
+                prelude,
+                &pk,
+                &com,
+                data.len(),
+                &kzg_settings,
+                byte_difficulty
+            )
             .expect("KZG error"));
     }
 
     #[test]
     fn test_mining_works() {
         let data = [4, 2137, 383, 4]; //, 5, 1, 5, 7];
+        let byte_difficulty = 1;
 
         let secrets_len = 15;
         let (s1, s2, s3) = generate_trusted_setup(secrets_len, [0; 32]);
@@ -221,7 +243,7 @@ mod tests {
         let pk = g.mul(&sk);
 
         let nfisch = 2;
-        let proof = Proof::<Backend, M>::prove(&kzg_settings, sk, &data, nfisch)
+        let proof = Proof::<Backend, M>::prove(&kzg_settings, sk, &data, nfisch, byte_difficulty)
             .expect("KZG error")
             .expect("No proof found");
         assert_eq!(proof.base_proofs.len(), nfisch);
@@ -233,7 +255,7 @@ mod tests {
         let poly = interpolate(kzg_settings.get_fft_settings(), &data);
         let com = kzg_settings.commit_to_poly(&poly).expect("commit");
         assert!(proof
-            .verify(&pk, &com, data.len(), &kzg_settings)
+            .verify(&pk, &com, data.len(), &kzg_settings, byte_difficulty)
             .expect("KZG error"));
     }
 }
