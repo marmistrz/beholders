@@ -1,5 +1,6 @@
 use itertools::izip;
 use kzg_traits::{EcBackend, Fr, G1Mul, KZGSettings, G1};
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
 use crate::check;
 use crate::commitment::{get_point, open_all, Opening};
@@ -99,6 +100,7 @@ impl<B: EcBackend, const M: usize> Proof<B, M> {
         let prelude = prelude(a_i);
 
         let proofs: Option<Vec<_>> = (0..nfisch)
+            .into_par_iter()
             .map(|fisch_iter| {
                 BaseProof::<B, M>::prove(
                     fisch_iter,
@@ -167,7 +169,6 @@ impl<B: EcBackend, const M: usize> BaseProof<B, M> {
         difficulty: u32,
     ) -> Option<Self> {
         for c in 0..MAXC {
-            // TODO check if direct add is faster
             let c = B::Fr::from_u64(c);
             let schnorr = Schnorr::<B>::prove(sk, r, c.clone());
 

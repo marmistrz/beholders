@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use beholders::{commitment::open_all, proof::BaseProof};
+use beholders::{commitment::open_all, proof::BaseProof, Proof};
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use kzg::{eip_4844::load_trusted_setup_filename_rust, eip_7594::BlstBackend, types::fr::FsFr};
 use kzg_traits::Fr;
@@ -30,7 +30,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     let prelude = [0; 8];
 
     // Benchmark the Fischlin Mining
-    c.bench_function("mining", |b| {
+    c.bench_function("base_mining", |b| {
         b.iter(|| {
             BaseProof::<Backend, M>::prove(
                 black_box(fisch_iter),
@@ -41,6 +41,22 @@ pub fn criterion_benchmark(c: &mut Criterion) {
                 black_box(&data),
                 bit_difficulty,
             )
+            .expect("No proof found");
+        })
+    });
+
+    let nfisch = 4;
+    let bit_difficulty = 14;
+    c.bench_function("full_mining", |b| {
+        b.iter(|| {
+            Proof::<Backend, M>::prove(
+                &kzg_settings,
+                black_box(sk),
+                black_box(&data),
+                black_box(nfisch),
+                bit_difficulty,
+            )
+            .expect("KZG error")
             .expect("No proof found");
         })
     });

@@ -37,6 +37,7 @@ dependencies = [
  "criterion",
  "itertools 0.14.0",
  "kzg",
+ "rayon",
  "rust-kzg-blst",
  "sha2",
  "test-case",
