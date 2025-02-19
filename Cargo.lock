@@ -367,8 +367,11 @@ name = "kzg"
 version = "0.1.0"
 source = "git+https://github.com/marmistrz/rust-kzg.git#8368cd79f2fbba9d4a4eac7f006c2698c8d4795c"
 dependencies = [
+ "num_cpus",
+ "rayon",
  "sha2",
  "siphasher",
+ "threadpool",
 ]
 
 [[package]]
@@ -575,6 +578,7 @@ dependencies = [
  "libc",
  "once_cell",
  "rand",
+ "rayon",
  "smallvec",
 ]
 
