@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use beholders::{commitment::open_all, proof::BaseProof};
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use kzg::{eip_4844::load_trusted_setup_filename_rust, eip_7594::BlstBackend, types::fr::FsFr};
@@ -44,5 +46,11 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     });
 }
 
-criterion_group!(benches, criterion_benchmark);
+criterion_group! {
+    name = benches;
+    config = Criterion::default()
+        .sample_size(500)
+        .measurement_time(Duration::from_secs(15));
+    targets = criterion_benchmark
+}
 criterion_main!(benches);
