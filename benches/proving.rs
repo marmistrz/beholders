@@ -10,7 +10,7 @@ const M: usize = 8;
 const TRUSTED_SETUP_FILE: &str = "trusted_setup.txt";
 
 pub fn criterion_benchmark(c: &mut Criterion) {
-    let data = (0..16).collect::<Vec<u64>>();
+    let data = (0..32).collect::<Vec<u64>>();
 
     let kzg_settings =
         load_trusted_setup_filename_rust(TRUSTED_SETUP_FILE).expect("loading trusted setup");
@@ -22,7 +22,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
 
     let sk = FsFr::from_u64(2137);
     let r = FsFr::from_u64(1337);
-    let byte_difficulty = 1;
+    let bit_difficulty = 8;
     let openings = open_all::<Backend>(&kzg_settings, &data).expect("openings");
     assert_eq!(openings.len(), data.len());
 
@@ -39,7 +39,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
                 black_box(&r),
                 black_box(&sk),
                 black_box(&data),
-                byte_difficulty,
+                bit_difficulty,
             )
             .expect("No proof found");
         })
