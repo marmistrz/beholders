@@ -91,6 +91,15 @@ mod tests {
     }
 
     #[test]
+    fn test_large_trusted_setup() {
+        let secrets_len = 1024;
+        let (s1, s2, s3) = generate_trusted_setup(secrets_len, [0; 32]);
+        let fs = FsFFTSettings::new(10).unwrap();
+
+        let _kzg_settings: FsKZGSettings = FsKZGSettings::new(&s1, &s2, &s3, &fs, 64).unwrap();
+    }
+
+    #[test]
     fn test_prove() {
         let data = [4, 2137, 383, 4]; //, 5, 1, 5, 7];
 

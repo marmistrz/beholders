@@ -29,17 +29,30 @@ impl<B: EcBackend, const M: usize> Proof<B, M> {
         prelude(a_i)
     }
 
+    /// Verifies the Beholder Signature.
+    ///
+    /// # Arguments
+    ///
+    /// * `pk` - Schnorr public key.
+    /// * `com` - KZG commitment for the data.
+    /// * `data_len` - Length of the underlying data.
+    /// * `kzg_settings` - KZG trusted setup.
+    /// * `difficulty` - The bit difficulty, i.e., the required number of leading zeros.
+    ///
+    /// # Returns
+    ///
+    /// An error is return in case of a KZG error. Otherwise, returns `true` if the verification is successful.
     pub fn verify(
         &self,
         pk: &PublicKey<B>,
         com: &Commitment<B>,
         data_len: usize,
         kzg_settings: &B::KZGSettings,
-        byte_difficulty: usize,
+        difficulty: u32,
     ) -> Result<bool, String> {
         let prelude = self.prelude();
         for (i, base_proof) in self.base_proofs.iter().enumerate() {
-            if !base_proof.verify(i, prelude, pk, com, data_len, kzg_settings, byte_difficulty)? {
+            if !base_proof.verify(i, prelude, pk, com, data_len, kzg_settings, difficulty)? {
                 println!("Failed at base proof {}", i);
                 return Ok(false);
             }
@@ -48,13 +61,32 @@ impl<B: EcBackend, const M: usize> Proof<B, M> {
         Ok(true)
     }
 
+    /// Generates a Beholder Signature for the given data.
+    ///
+    /// # Arguments
+    ///
+    /// * `kzg_settings` - KZG trusted setup.
+    /// * `sk` - Schnorr secret key.
+    /// * `data` - The data to be proven. The length of the data must be a power of two.
+    /// * `nfisch` - Number of Fischlin proofs to generate.
+    /// * `difficulty` - The bit difficulty, i.e., the required number of leading zeros.
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(Some(Self))` if the proof generation is successful, `Ok(None)` if it fails,
+    /// or an `Err` with a string message in case of an error.
     pub fn prove(
         kzg_settings: &B::KZGSettings,
         sk: SecretKey<B>,
         data: &[u64],
         nfisch: usize,
-        byte_difficulty: usize,
+        difficulty: u32,
     ) -> Result<Option<Self>, String> {
+        assert!(
+            data.len().is_power_of_two(),
+            "Data length must be a power of two"
+        );
+
         let generator = B::G1::generator();
         // Compute the openings
         let openings: Vec<Opening<B>> = open_all::<B>(kzg_settings, data)?;
@@ -75,7 +107,7 @@ impl<B: EcBackend, const M: usize> Proof<B, M> {
                     &r_i[fisch_iter],
                     &sk,
                     data,
-                    byte_difficulty,
+                    difficulty,
                 )
             })
             .collect();
@@ -92,7 +124,7 @@ impl<B: EcBackend, const M: usize> BaseProof<B, M> {
         com: &Commitment<B>,
         data_len: usize,
         kzg_settings: &B::KZGSettings,
-        byte_difficulty: usize,
+        difficulty: u32,
     ) -> Result<bool, String> {
         let fft_settings = kzg_settings.get_fft_settings();
 
@@ -120,7 +152,7 @@ impl<B: EcBackend, const M: usize> BaseProof<B, M> {
         }
 
         // Check PoW
-        check!(pow_pass(&hash, byte_difficulty));
+        check!(pow_pass(&hash, difficulty));
 
         Ok(true)
     }
@@ -132,7 +164,7 @@ impl<B: EcBackend, const M: usize> BaseProof<B, M> {
         r: &B::Fr,
         sk: &SecretKey<B>,
         data: &[u64],
-        byte_difficulty: usize,
+        difficulty: u32,
     ) -> Option<Self> {
         for c in 0..MAXC {
             // TODO check if direct add is faster
@@ -151,7 +183,7 @@ impl<B: EcBackend, const M: usize> BaseProof<B, M> {
 
                 hash = bitxor(hash, partial_pow);
             }
-            if pow_pass(&hash, byte_difficulty) {
+            if pow_pass(&hash, difficulty) {
                 let openings: Vec<_> = openings.into_iter().cloned().collect();
                 return Some(BaseProof {
                     schnorr,

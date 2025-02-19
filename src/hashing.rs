@@ -74,13 +74,10 @@ pub(crate) fn individual_hash<B: EcBackend>(
     state
 }
 
-// FIXME this should be bit difficulty, not byte difficulty
-pub(crate) fn pow_pass(hash_output: &HashOutput, difficulty: usize) -> bool {
-    hash_output
-        .iter()
-        .flat_map(|x| x.to_le_bytes())
-        .take(difficulty)
-        .all(|x| x == 0)
+/// Returns true if `hash_output` has at least `difficulty` leading zeros (little-endian) / trailing zeros (big-endian).
+pub(crate) fn pow_pass(hash_output: &HashOutput, difficulty: u32) -> bool {
+    assert!(difficulty <= 64, "Only difficulty <= 64 is supported");
+    hash_output[0].trailing_zeros() >= difficulty
 }
 
 #[cfg(test)]
@@ -118,16 +115,9 @@ mod tests {
         let mut hash_output = [0u64; 8];
         assert!(pow_pass(&hash_output, 1));
         assert!(pow_pass(&hash_output, 64));
-        hash_output[1] = u64::MAX;
+        hash_output[0] = (u8::MAX as u64) + 1;
         assert!(pow_pass(&hash_output, 8));
         assert!(!pow_pass(&hash_output, 9));
-        hash_output[0] = u64::MAX;
-        assert!(pow_pass(&hash_output, 0));
-        assert!(!pow_pass(&hash_output, 1));
-        hash_output[0] = (u8::MAX as u64) + 1;
-        assert!(pow_pass(&hash_output, 0));
-        assert!(pow_pass(&hash_output, 1));
-        assert!(!pow_pass(&hash_output, 2));
     }
 
     #[test]

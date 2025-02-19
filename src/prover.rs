@@ -7,7 +7,7 @@ use kzg_traits::Fr;
 const TRUSTED_SETUP_FILE: &str = "trusted_setup.txt";
 
 type Backend = BlstBackend;
-const BYTE_DIFFICULTY: usize = 2;
+const DIFFICULTY: u32 = 16;
 const NFISCH: usize = 3;
 
 fn main() {
@@ -16,11 +16,12 @@ fn main() {
         load_trusted_setup_filename_rust(TRUSTED_SETUP_FILE).expect("loading trusted setup");
     let duration = start.elapsed();
     println!("Initialization time: {:?}", duration);
+
     println!("Proving...");
     let start: Instant = Instant::now();
     let data = [1, 2, 3, 4];
     let sk = FsFr::from_u64(2137);
-    let _duration = Proof::<Backend, 8>::prove(&kzg_settings, sk, &data, NFISCH, BYTE_DIFFICULTY)
+    let _duration = Proof::<Backend, 8>::prove(&kzg_settings, sk, &data, NFISCH, DIFFICULTY)
         .expect("KZG error")
         .expect("Proof not found");
     let duration = start.elapsed();
