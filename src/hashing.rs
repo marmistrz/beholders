@@ -18,7 +18,12 @@ pub(crate) fn prelude<TG1: G1>(a_i: impl Iterator<Item = TG1>) -> Prelude {
     bytemuck::cast(hash)
 }
 
-pub(crate) fn derive_indices(i: usize, c: &impl Fr, m: usize, data_len: usize) -> Vec<usize> {
+pub(crate) fn derive_indices(
+    i: usize,
+    c: &impl Fr,
+    num_indices: usize,
+    data_len: usize,
+) -> Vec<usize> {
     let mut state = [0u64; 8];
     let mut input = [0u8; 128];
     input[0..8].clone_from_slice(&i.to_le_bytes());
@@ -27,11 +32,15 @@ pub(crate) fn derive_indices(i: usize, c: &impl Fr, m: usize, data_len: usize) -
     let blocks: &GenericArray<_, U128> = GenericArray::from_slice(&input);
     compress512(&mut state, &[*blocks]);
 
-    assert_eq!(m, 8, "FIXME support m != 8");
-    Vec::from(state.map(|x| {
-        let x: usize = x.try_into().unwrap();
-        x % data_len
-    }))
+    assert!(num_indices <= 8, "FIXME support m > 8");
+    state
+        .map(|x| {
+            let x: usize = x.try_into().unwrap();
+            x % data_len
+        })
+        .into_iter()
+        .take(num_indices)
+        .collect()
 }
 
 // prelude: 32 bytes
@@ -80,14 +89,15 @@ mod tests {
         eip_7594::BlstBackend,
         types::{fr::FsFr, g1::FsG1},
     };
+    use test_case::test_case;
 
     use super::*;
 
-    #[test]
-    fn test_derive_indices() {
+    #[test_case(8; "m=8")]
+    #[test_case(6; "m=6")]
+    fn test_derive_indices(m: usize) {
         let i = 1;
         let c = FsFr::one();
-        let m = 8;
         let data_len = 10;
         let indices = derive_indices(i, &c, m, data_len);
         assert_eq!(indices.len(), m);
