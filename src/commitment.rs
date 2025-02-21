@@ -53,7 +53,13 @@ fn open_all_fk20(
     let fft_settings = kzg_settings.get_fft_settings();
     let fk20_settings = FsFK20SingleSettings::new(kzg_settings, 2 * data.len())?;
     let poly: FsPoly = interpolate(fft_settings, data);
-    fk20_settings.data_availability_optimized(&poly)
+    let fk20 = fk20_settings.data_availability_optimized(&poly)?;
+    Ok(fk20
+        .into_iter()
+        .enumerate()
+        .filter(|(i, _)| i % 2 == 0)
+        .map(|(_, x)| x)
+        .collect())
 }
 
 #[cfg(test)]
@@ -172,52 +178,96 @@ mod tests {
         }
     }
 
+    // #[test]
+    // fn test_prove_fk20() {
+    //     let poly_len: usize = 4;
+    //     // let n: usize = 5;
+    //     // let n_len: usize = 1 << n;
+    //     // let secrets_len = n_len + 1;
+
+    //     // // assert!(n_len >= 2 * poly_len);
+
+    //     // // Initialise the secrets and data structures
+    //     // let (s1, s2, s3) = generate_trusted_setup(secrets_len, [0; 32]);
+    //     // let fs = FsFFTSettings::new(n).unwrap();
+    //     // let ks = FsKZGSettings::new(&s1, &s2, &s3, &fs, 4).unwrap();
+
+    //     const TRUSTED_SETUP_FILE: &str = "trusted_setup.txt";
+    //     let ks = kzg::eip_4844::load_trusted_setup_filename_rust(TRUSTED_SETUP_FILE)
+    //         .expect("loading trusted setup");
+    //     let fs = ks.get_fft_settings();
+    //     let fk = FsFK20SingleSettings::new(&ks, 2 * poly_len).unwrap();
+
+    //     // Commit to the polynomial
+    //     let data: [u64; 4] = [4, 2137, 383, 4]; //, 5, 1, 5, 7];
+    //     let p: FsPoly = interpolate(fs, &data);
+    //     assert_eq!(p.coeffs.len(), poly_len);
+
+    //     let commitment = ks.commit_to_poly(&p).unwrap();
+
+    //     // 1. First with `da_using_fk20_single`
+
+    //     // Generate the proofs
+    //     let all_proofs = fk.data_availability_optimized(&p).unwrap();
+    //     let direct = open_all::<BlstBackend>(&ks, &data).unwrap();
+    //     let (idx, _) = all_proofs
+    //         .iter()
+    //         .enumerate()
+    //         .find(|&(_, &x)| x == direct[1])
+    //         .expect("find");
+    //     // assert!(false, "{idx}");
+    //     // // Verify the proof at each root of unity
+    //     // for i in 0..(2 * poly_len) {
+    //     //     let x = fs.get_roots_of_unity_at(i);
+    //     //     let y = p.eval(&x);
+    //     //     let proof = &all_proofs[reverse_bits_limited(2 * poly_len, i)];
+    //     //     assert!(ks.check_proof_single(&commitment, proof, &x, &y).unwrap());
+    //     // }
+
+    //     // // 2. Exactly the same thing again with `fk20_single_da_opt`
+
+    //     // // Generate the proofs
+    //     // let all_proofs = fk.data_availability_optimized(&p).unwrap();
+
+    //     // Verify the proof at each root of unity
+    //     for (i, proof) in all_proofs.iter().enumerate().take(2 * poly_len) {
+    //         if i % 2 == 1 {
+    //             continue;
+    //         }
+    //         let i = i / 2;
+    //         let x = get_point(fs, data.len(), i); //fs.get_roots_of_unity_at(i);
+    //         let y = p.eval(&x);
+    //         assert!(
+    //             ks.check_proof_single(&commitment, proof, &x, &y).unwrap(),
+    //             "{i}"
+    //         );
+    //     }
+    // }
+
     #[test]
-    fn test_prove_fk20() {
-        let poly_len: usize = 4;
+    fn test_open_all_matches() {
         let n: usize = 5;
         let n_len: usize = 1 << n;
         let secrets_len = n_len + 1;
 
         // assert!(n_len >= 2 * poly_len);
 
+        // FIXME: this also fails with the trusted setup
         // Initialise the secrets and data structures
         let (s1, s2, s3) = generate_trusted_setup(secrets_len, [0; 32]);
         let fs = FsFFTSettings::new(n).unwrap();
         let ks = FsKZGSettings::new(&s1, &s2, &s3, &fs, 4).unwrap();
-        let fk = FsFK20SingleSettings::new(&ks, 2 * poly_len).unwrap();
+
+        // const TRUSTED_SETUP_FILE: &str = "trusted_setup.txt";
+        // let ks = kzg::eip_4844::load_trusted_setup_filename_rust(TRUSTED_SETUP_FILE)
+        //     .expect("loading trusted setup");
 
         // Commit to the polynomial
         let data: [u64; 4] = [4, 2137, 383, 4]; //, 5, 1, 5, 7];
-        let p: FsPoly = interpolate(&fs, &data);
-        assert_eq!(p.coeffs.len(), poly_len);
 
-        let commitment = ks.commit_to_poly(&p).unwrap();
-
-        // 1. First with `da_using_fk20_single`
-
-        // Generate the proofs
-        let all_proofs = fk.data_availability(&p).unwrap();
-
-        // Verify the proof at each root of unity
-        for i in 0..(2 * poly_len) {
-            let x = fs.get_roots_of_unity_at(i);
-            let y = p.eval(&x);
-            let proof = &all_proofs[reverse_bits_limited(2 * poly_len, i)];
-            assert!(ks.check_proof_single(&commitment, proof, &x, &y).unwrap());
-        }
-
-        // 2. Exactly the same thing again with `fk20_single_da_opt`
-
-        // Generate the proofs
-        let all_proofs = fk.data_availability_optimized(&p).unwrap();
-
-        // Verify the proof at each root of unity
-        for (i, proof) in all_proofs.iter().enumerate().take(2 * poly_len) {
-            let x = fs.get_roots_of_unity_at(i);
-            let y = p.eval(&x);
-            assert!(ks.check_proof_single(&commitment, proof, &x, &y).unwrap());
-        }
+        let all_proofs = open_all_fk20(&ks, &data).unwrap();
+        let direct = open_all::<BlstBackend>(&ks, &data).unwrap();
+        assert_eq!(all_proofs, direct);
     }
 
     #[test]
