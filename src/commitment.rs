@@ -1,4 +1,11 @@
-use kzg_traits::{EcBackend, FFTFr, FFTSettings, Fr, KZGSettings, Poly};
+use kzg::{
+    eip_7594::BlstBackend,
+    types::{
+        fk20_single_settings::FsFK20SingleSettings, g1::FsG1, kzg_settings::FsKZGSettings,
+        poly::FsPoly,
+    },
+};
+use kzg_traits::{EcBackend, FFTFr, FFTSettings, FK20SingleSettings, Fr, KZGSettings, Poly};
 
 pub(crate) type Opening<B> = <B as EcBackend>::G1;
 
@@ -39,6 +46,16 @@ pub fn open_all<B: EcBackend>(
         .collect()
 }
 
+fn open_all_fk20(
+    kzg_settings: &FsKZGSettings,
+    data: &[u64],
+) -> Result<Vec<Opening<BlstBackend>>, String> {
+    let fft_settings = kzg_settings.get_fft_settings();
+    let fk20_settings = FsFK20SingleSettings::new(kzg_settings, 2 * data.len())?;
+    let poly: FsPoly = interpolate(fft_settings, data);
+    fk20_settings.data_availability_optimized(&poly)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -47,7 +64,9 @@ mod tests {
         types::{fft_settings::FsFFTSettings, fr::FsFr, kzg_settings::FsKZGSettings, poly::FsPoly},
         utils::generate_trusted_setup,
     };
-    use kzg_traits::{EcBackend, FFTSettings, Fr, KZGSettings, Poly};
+    use kzg_traits::{
+        common_utils::reverse_bits_limited, EcBackend, FFTSettings, Fr, KZGSettings, Poly,
+    };
     type Backend = BlstBackend;
 
     #[test]
@@ -123,6 +142,81 @@ mod tests {
                 .check_proof_single(&com, &proof, x, &value)
                 .expect("verify");
             assert!(res, "Proof did not verify for i = {}, value = {}", i, val);
+        }
+    }
+
+    #[test]
+    fn test_open_all() {
+        let data: [u64; 4] = [4, 2137, 383, 4]; //, 5, 1, 5, 7];
+
+        let secrets_len = 15;
+        let (s1, s2, s3) = generate_trusted_setup(secrets_len, [0; 32]);
+        let fs = FsFFTSettings::new(4).unwrap();
+        let kzg_settings: FsKZGSettings = FsKZGSettings::new(&s1, &s2, &s3, &fs, 7).unwrap();
+
+        let fft_settings = kzg_settings.get_fft_settings();
+
+        let openings = open_all::<Backend>(&kzg_settings, &data).expect("openings");
+        let poly = interpolate(fft_settings, &data);
+        let com = kzg_settings.commit_to_poly(&poly).expect("commit");
+
+        for ((i, val), proof) in data.iter().enumerate().zip(openings.iter()) {
+            let value = FsFr::from_u64(*val);
+            let x = get_point(fft_settings, data.len(), i);
+
+            assert_eq!(poly.eval(x), value, "value");
+            let res = kzg_settings
+                .check_proof_single(&com, proof, x, &value)
+                .expect("verify");
+            assert!(res, "Proof did not verify for i = {}, value = {}", i, val);
+        }
+    }
+
+    #[test]
+    fn test_prove_fk20() {
+        let poly_len: usize = 4;
+        let n: usize = 5;
+        let n_len: usize = 1 << n;
+        let secrets_len = n_len + 1;
+
+        // assert!(n_len >= 2 * poly_len);
+
+        // Initialise the secrets and data structures
+        let (s1, s2, s3) = generate_trusted_setup(secrets_len, [0; 32]);
+        let fs = FsFFTSettings::new(n).unwrap();
+        let ks = FsKZGSettings::new(&s1, &s2, &s3, &fs, 4).unwrap();
+        let fk = FsFK20SingleSettings::new(&ks, 2 * poly_len).unwrap();
+
+        // Commit to the polynomial
+        let data: [u64; 4] = [4, 2137, 383, 4]; //, 5, 1, 5, 7];
+        let p: FsPoly = interpolate(&fs, &data);
+        assert_eq!(p.coeffs.len(), poly_len);
+
+        let commitment = ks.commit_to_poly(&p).unwrap();
+
+        // 1. First with `da_using_fk20_single`
+
+        // Generate the proofs
+        let all_proofs = fk.data_availability(&p).unwrap();
+
+        // Verify the proof at each root of unity
+        for i in 0..(2 * poly_len) {
+            let x = fs.get_roots_of_unity_at(i);
+            let y = p.eval(&x);
+            let proof = &all_proofs[reverse_bits_limited(2 * poly_len, i)];
+            assert!(ks.check_proof_single(&commitment, proof, &x, &y).unwrap());
+        }
+
+        // 2. Exactly the same thing again with `fk20_single_da_opt`
+
+        // Generate the proofs
+        let all_proofs = fk.data_availability_optimized(&p).unwrap();
+
+        // Verify the proof at each root of unity
+        for (i, proof) in all_proofs.iter().enumerate().take(2 * poly_len) {
+            let x = fs.get_roots_of_unity_at(i);
+            let y = p.eval(&x);
+            assert!(ks.check_proof_single(&commitment, proof, &x, &y).unwrap());
         }
     }
 

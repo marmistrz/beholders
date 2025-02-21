@@ -83,6 +83,7 @@ impl<B: EcBackend, const M: usize> Proof<B, M> {
         nfisch: usize,
         difficulty: u32,
     ) -> Result<Option<Self>, String> {
+        // TODO: missing error correction
         assert!(
             data.len().is_power_of_two(),
             "Data length must be a power of two"
