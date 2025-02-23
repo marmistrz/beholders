@@ -28,18 +28,6 @@ pub(crate) fn get_point<TFr: Fr>(
     &roots[i * stride]
 }
 
-pub fn open_all(kzg_settings: &TKZGSettings, data: &[u64]) -> Result<Vec<Opening>, String> {
-    let fft_settings = kzg_settings.get_fft_settings();
-    let poly: TPoly = interpolate(fft_settings, data);
-    data.iter()
-        .enumerate()
-        .map(|(i, _)| {
-            let x = get_point(fft_settings, data.len(), i);
-            kzg_settings.compute_proof_single(&poly, x)
-        })
-        .collect()
-}
-
 // TODO migrate to this function
 pub fn open_all_fk20(kzg_settings: &TKZGSettings, data: &[u64]) -> Result<Vec<Opening>, String> {
     let fft_settings = kzg_settings.get_fft_settings();
@@ -64,6 +52,18 @@ mod tests {
         utils::generate_trusted_setup,
     };
     use kzg_traits::{FFTSettings, Fr, KZGSettings, Poly};
+
+    fn open_all(kzg_settings: &TKZGSettings, data: &[u64]) -> Result<Vec<Opening>, String> {
+        let fft_settings = kzg_settings.get_fft_settings();
+        let poly: TPoly = interpolate(fft_settings, data);
+        data.iter()
+            .enumerate()
+            .map(|(i, _)| {
+                let x = get_point(fft_settings, data.len(), i);
+                kzg_settings.compute_proof_single(&poly, x)
+            })
+            .collect()
+    }
 
     #[test]
     fn test_interpolate() {

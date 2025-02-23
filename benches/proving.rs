@@ -1,10 +1,6 @@
 use std::time::Duration;
 
-use beholders::{
-    commitment::{open_all, open_all_fk20},
-    proof::BaseProof,
-    Proof,
-};
+use beholders::{commitment::open_all_fk20, proof::BaseProof, Proof};
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use kzg::{eip_4844::load_trusted_setup_filename_rust, types::fr::FsFr};
 use kzg_traits::Fr;
@@ -27,7 +23,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     let sk = FsFr::from_u64(2137);
     let r = FsFr::from_u64(1337);
     let bit_difficulty = 14;
-    let openings = open_all(&kzg_settings, &data).expect("openings");
+    let openings = open_all_fk20(&kzg_settings, &data).expect("openings");
     assert_eq!(openings.len(), data.len());
 
     let fisch_iter = 0;
