@@ -185,7 +185,7 @@ impl<const M: usize> BaseProof<M> {
                 hash = bitxor(hash, partial_pow);
             }
             if pow_pass(&hash, difficulty) {
-                let openings: Vec<_> = openings.into_iter().cloned().collect();
+                let openings: Vec<_> = openings.into_iter().copied().collect();
                 return Some(BaseProof {
                     schnorr,
                     data: data.try_into().unwrap(),

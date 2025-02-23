@@ -1,3 +1,8 @@
+#![warn(
+    clippy::unsafe_derive_deserialize,
+    clippy::cloned_instead_of_copied,
+    clippy::explicit_iter_loop
+)]
 pub mod commitment;
 mod hashing;
 pub mod proof;
