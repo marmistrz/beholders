@@ -1,4 +1,4 @@
-use kzg_traits::{EcBackend, Fr, G1};
+use kzg_traits::{Fr, G1};
 // use log::debug;
 use sha2::{
     compress512,
@@ -50,9 +50,9 @@ pub(crate) fn derive_indices(
 // val: 32 bytes
 // opening: 48 bytes
 // TOTAL:
-pub(crate) fn individual_hash<B: EcBackend>(
+pub(crate) fn individual_hash(
     prelude: Prelude,
-    schnorr: &Schnorr<B>,
+    schnorr: &Schnorr,
     k: u8,
     val: u64,
     opening: &impl G1,
@@ -82,10 +82,7 @@ pub(crate) fn pow_pass(hash_output: &HashOutput, difficulty: u32) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use kzg::{
-        eip_7594::BlstBackend,
-        types::{fr::FsFr, g1::FsG1},
-    };
+    use kzg::types::{fr::FsFr, g1::FsG1};
     use test_case::test_case;
 
     use super::*;
@@ -122,11 +119,7 @@ mod tests {
 
     #[test]
     fn test_invididual_hash() {
-        let schnorr = Schnorr::<BlstBackend>::prove(
-            &Default::default(),
-            &Default::default(),
-            Default::default(),
-        );
+        let schnorr = Schnorr::prove(&Default::default(), &Default::default(), Default::default());
         let prelude = [0u64; 8];
         let opening = FsG1::generator();
         individual_hash(prelude, &schnorr, 0, 0, &opening);

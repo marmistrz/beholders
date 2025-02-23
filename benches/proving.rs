@@ -1,11 +1,14 @@
 use std::time::Duration;
 
-use beholders::{commitment::open_all, proof::BaseProof, Proof};
+use beholders::{
+    commitment::{open_all, open_all_fk20},
+    proof::BaseProof,
+    Proof,
+};
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use kzg::{eip_4844::load_trusted_setup_filename_rust, eip_7594::BlstBackend, types::fr::FsFr};
+use kzg::{eip_4844::load_trusted_setup_filename_rust, types::fr::FsFr};
 use kzg_traits::Fr;
 
-type Backend = BlstBackend;
 const M: usize = 8;
 const TRUSTED_SETUP_FILE: &str = "trusted_setup.txt";
 
@@ -17,13 +20,14 @@ pub fn criterion_benchmark(c: &mut Criterion) {
 
     // Benchmark the precomputation (opening all data for the KZG commitment)
     c.bench_function("open_all", |b| {
-        b.iter(|| open_all::<Backend>(&kzg_settings, black_box(&data)).expect("KZG error"))
+        b.iter(|| open_all_fk20(&kzg_settings, black_box(&data)).expect("KZG error"))
+        // b.iter(|| open_all::<Backend>(&kzg_settings, black_box(&data)).expect("KZG error"))
     });
 
     let sk = FsFr::from_u64(2137);
     let r = FsFr::from_u64(1337);
     let bit_difficulty = 14;
-    let openings = open_all::<Backend>(&kzg_settings, &data).expect("openings");
+    let openings = open_all(&kzg_settings, &data).expect("openings");
     assert_eq!(openings.len(), data.len());
 
     let fisch_iter = 0;
@@ -32,7 +36,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     // Benchmark the Fischlin Mining
     c.bench_function("base_mining", |b| {
         b.iter(|| {
-            BaseProof::<Backend, M>::prove(
+            BaseProof::<M>::prove(
                 black_box(fisch_iter),
                 black_box(prelude),
                 black_box(&openings),
@@ -49,7 +53,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     let bit_difficulty = 14;
     c.bench_function("full_mining", |b| {
         b.iter(|| {
-            Proof::<Backend, M>::prove(
+            Proof::<M>::prove(
                 &kzg_settings,
                 black_box(sk),
                 black_box(&data),

@@ -366,7 +366,7 @@ dependencies = [
 [[package]]
 name = "kzg"
 version = "0.1.0"
-source = "git+https://github.com/marmistrz/rust-kzg.git#8368cd79f2fbba9d4a4eac7f006c2698c8d4795c"
+source = "git+https://github.com/marmistrz/rust-kzg.git#250dc52e08996e8f6ae3df80fa77e0322907490b"
 dependencies = [
  "sha2",
  "siphasher",
@@ -568,7 +568,7 @@ checksum = "2b15c43186be67a4fd63bee50d0303afffcef381492ebe2c5d87f324e1b8815c"
 [[package]]
 name = "rust-kzg-blst"
 version = "0.1.0"
-source = "git+https://github.com/marmistrz/rust-kzg.git#8368cd79f2fbba9d4a4eac7f006c2698c8d4795c"
+source = "git+https://github.com/marmistrz/rust-kzg.git#250dc52e08996e8f6ae3df80fa77e0322907490b"
 dependencies = [
  "blst",
  "hex",

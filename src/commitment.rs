@@ -1,13 +1,11 @@
-use kzg::{
-    eip_7594::BlstBackend,
-    types::{
-        fk20_single_settings::FsFK20SingleSettings, g1::FsG1, kzg_settings::FsKZGSettings,
-        poly::FsPoly,
-    },
-};
-use kzg_traits::{EcBackend, FFTFr, FFTSettings, FK20SingleSettings, Fr, KZGSettings, Poly};
+use kzg_traits::{FFTFr, FFTSettings, FK20SingleSettings, Fr, KZGSettings, Poly};
 
-pub(crate) type Opening<B> = <B as EcBackend>::G1;
+use crate::types::{TFK20SingleSettings, TKZGSettings, TPoly, TG1};
+
+/// KZG opening
+pub(crate) type Opening = TG1;
+/// Polynomial Commitment (KZG) value
+pub(crate) type Commitment = TG1;
 
 pub(crate) fn interpolate<TFr, TFFT, TPoly>(settings: &TFFT, data: &[u64]) -> TPoly
 where
@@ -30,13 +28,9 @@ pub(crate) fn get_point<TFr: Fr>(
     &roots[i * stride]
 }
 
-// TODO use fk20
-pub fn open_all<B: EcBackend>(
-    kzg_settings: &B::KZGSettings,
-    data: &[u64],
-) -> Result<Vec<Opening<B>>, String> {
+pub fn open_all(kzg_settings: &TKZGSettings, data: &[u64]) -> Result<Vec<Opening>, String> {
     let fft_settings = kzg_settings.get_fft_settings();
-    let poly: B::Poly = interpolate(fft_settings, data);
+    let poly: TPoly = interpolate(fft_settings, data);
     data.iter()
         .enumerate()
         .map(|(i, _)| {
@@ -46,13 +40,11 @@ pub fn open_all<B: EcBackend>(
         .collect()
 }
 
-fn open_all_fk20(
-    kzg_settings: &FsKZGSettings,
-    data: &[u64],
-) -> Result<Vec<Opening<BlstBackend>>, String> {
+// TODO migrate to this function
+pub fn open_all_fk20(kzg_settings: &TKZGSettings, data: &[u64]) -> Result<Vec<Opening>, String> {
     let fft_settings = kzg_settings.get_fft_settings();
-    let fk20_settings = FsFK20SingleSettings::new(kzg_settings, 2 * data.len())?;
-    let poly: FsPoly = interpolate(fft_settings, data);
+    let fk20_settings = TFK20SingleSettings::new(kzg_settings, 2 * data.len())?;
+    let poly: TPoly = interpolate(fft_settings, data);
     let fk20 = fk20_settings.data_availability_optimized(&poly)?;
     Ok(fk20
         .into_iter()
@@ -64,21 +56,19 @@ fn open_all_fk20(
 
 #[cfg(test)]
 mod tests {
+    use crate::types::TFFTSettings;
+
     use super::*;
     use kzg::{
-        eip_7594::BlstBackend,
         types::{fft_settings::FsFFTSettings, fr::FsFr, kzg_settings::FsKZGSettings, poly::FsPoly},
         utils::generate_trusted_setup,
     };
-    use kzg_traits::{
-        common_utils::reverse_bits_limited, EcBackend, FFTSettings, Fr, KZGSettings, Poly,
-    };
-    type Backend = BlstBackend;
+    use kzg_traits::{FFTSettings, Fr, KZGSettings, Poly};
 
     #[test]
     fn test_interpolate() {
         let data = [4, 2137, 383, 4]; //, 5, 1, 5, 7];
-        let fft_settings = <Backend as EcBackend>::FFTSettings::new(15).unwrap();
+        let fft_settings = TFFTSettings::new(15).unwrap();
         let poly: FsPoly = interpolate(&fft_settings, &data);
 
         for (i, orig) in data.iter().enumerate() {
@@ -98,7 +88,7 @@ mod tests {
     #[test]
     fn test_interpolate_long() {
         let data = [0; 64]; //, 5, 1, 5, 7];
-        let fft_settings = <Backend as EcBackend>::FFTSettings::new(15).unwrap();
+        let fft_settings = TFFTSettings::new(15).unwrap();
         let poly: FsPoly = interpolate(&fft_settings, &data);
 
         for (i, orig) in data.iter().enumerate() {
@@ -162,7 +152,7 @@ mod tests {
 
         let fft_settings = kzg_settings.get_fft_settings();
 
-        let openings = open_all::<Backend>(&kzg_settings, &data).expect("openings");
+        let openings = open_all(&kzg_settings, &data).expect("openings");
         let poly = interpolate(fft_settings, &data);
         let com = kzg_settings.commit_to_poly(&poly).expect("commit");
 
@@ -178,71 +168,47 @@ mod tests {
         }
     }
 
-    // #[test]
-    // fn test_prove_fk20() {
-    //     let poly_len: usize = 4;
-    //     // let n: usize = 5;
-    //     // let n_len: usize = 1 << n;
-    //     // let secrets_len = n_len + 1;
+    #[test]
+    fn test_prove_fk20() {
+        let poly_len: usize = 4;
 
-    //     // // assert!(n_len >= 2 * poly_len);
+        const TRUSTED_SETUP_FILE: &str = "trusted_setup.txt";
+        let ks = kzg::eip_4844::load_trusted_setup_filename_rust(TRUSTED_SETUP_FILE)
+            .expect("loading trusted setup");
+        let fs = ks.get_fft_settings();
+        let fk = TFK20SingleSettings::new(&ks, 2 * poly_len).unwrap();
 
-    //     // // Initialise the secrets and data structures
-    //     // let (s1, s2, s3) = generate_trusted_setup(secrets_len, [0; 32]);
-    //     // let fs = FsFFTSettings::new(n).unwrap();
-    //     // let ks = FsKZGSettings::new(&s1, &s2, &s3, &fs, 4).unwrap();
+        // Commit to the polynomial
+        let data: [u64; 4] = [4, 2137, 383, 4]; //, 5, 1, 5, 7];
+        let p: FsPoly = interpolate(fs, &data);
+        assert_eq!(p.coeffs.len(), poly_len);
 
-    //     const TRUSTED_SETUP_FILE: &str = "trusted_setup.txt";
-    //     let ks = kzg::eip_4844::load_trusted_setup_filename_rust(TRUSTED_SETUP_FILE)
-    //         .expect("loading trusted setup");
-    //     let fs = ks.get_fft_settings();
-    //     let fk = FsFK20SingleSettings::new(&ks, 2 * poly_len).unwrap();
+        let commitment = ks.commit_to_poly(&p).unwrap();
 
-    //     // Commit to the polynomial
-    //     let data: [u64; 4] = [4, 2137, 383, 4]; //, 5, 1, 5, 7];
-    //     let p: FsPoly = interpolate(fs, &data);
-    //     assert_eq!(p.coeffs.len(), poly_len);
+        // Generate the proofs
+        let all_proofs = fk.data_availability_optimized(&p).unwrap();
+        let direct = open_all(&ks, &data).unwrap();
+        let (idx, _) = all_proofs
+            .iter()
+            .enumerate()
+            .find(|&(_, &x)| x == direct[1])
+            .expect("find");
+        assert_eq!(idx, 2);
 
-    //     let commitment = ks.commit_to_poly(&p).unwrap();
-
-    //     // 1. First with `da_using_fk20_single`
-
-    //     // Generate the proofs
-    //     let all_proofs = fk.data_availability_optimized(&p).unwrap();
-    //     let direct = open_all::<BlstBackend>(&ks, &data).unwrap();
-    //     let (idx, _) = all_proofs
-    //         .iter()
-    //         .enumerate()
-    //         .find(|&(_, &x)| x == direct[1])
-    //         .expect("find");
-    //     // assert!(false, "{idx}");
-    //     // // Verify the proof at each root of unity
-    //     // for i in 0..(2 * poly_len) {
-    //     //     let x = fs.get_roots_of_unity_at(i);
-    //     //     let y = p.eval(&x);
-    //     //     let proof = &all_proofs[reverse_bits_limited(2 * poly_len, i)];
-    //     //     assert!(ks.check_proof_single(&commitment, proof, &x, &y).unwrap());
-    //     // }
-
-    //     // // 2. Exactly the same thing again with `fk20_single_da_opt`
-
-    //     // // Generate the proofs
-    //     // let all_proofs = fk.data_availability_optimized(&p).unwrap();
-
-    //     // Verify the proof at each root of unity
-    //     for (i, proof) in all_proofs.iter().enumerate().take(2 * poly_len) {
-    //         if i % 2 == 1 {
-    //             continue;
-    //         }
-    //         let i = i / 2;
-    //         let x = get_point(fs, data.len(), i); //fs.get_roots_of_unity_at(i);
-    //         let y = p.eval(&x);
-    //         assert!(
-    //             ks.check_proof_single(&commitment, proof, &x, &y).unwrap(),
-    //             "{i}"
-    //         );
-    //     }
-    // }
+        // Verify the proof at each root of unity
+        for (i, proof) in all_proofs.iter().enumerate().take(2 * poly_len) {
+            if i % 2 == 1 {
+                continue;
+            }
+            let i = i / 2;
+            let x = get_point(fs, data.len(), i); //fs.get_roots_of_unity_at(i);
+            let y = p.eval(x);
+            assert!(
+                ks.check_proof_single(&commitment, proof, x, &y).unwrap(),
+                "{i}"
+            );
+        }
+    }
 
     #[test]
     fn test_open_all_matches() {
@@ -266,7 +232,7 @@ mod tests {
         let data: [u64; 4] = [4, 2137, 383, 4]; //, 5, 1, 5, 7];
 
         let all_proofs = open_all_fk20(&ks, &data).unwrap();
-        let direct = open_all::<BlstBackend>(&ks, &data).unwrap();
+        let direct = open_all(&ks, &data).unwrap();
         assert_eq!(all_proofs, direct);
     }
 

@@ -1,22 +1,26 @@
-use kzg_traits::{EcBackend, Fr, G1Mul, G1};
-pub(crate) type PublicKey<B> = <B as EcBackend>::G1;
-pub(crate) type SecretKey<B> = <B as EcBackend>::Fr;
+use crate::types::{TFr, TG1};
+use kzg_traits::{Fr, G1Mul, G1};
+
+/// Secret key for Schnorr signature
+pub(crate) type PublicKey = TG1;
+/// Secret key for Schnorr signature
+pub(crate) type SecretKey = TFr;
 
 #[derive(Debug)]
-pub(crate) struct Schnorr<B: EcBackend> {
-    pub(crate) a: B::G1,
-    pub(crate) c: B::Fr,
-    pub(crate) z: B::Fr,
+pub(crate) struct Schnorr {
+    pub(crate) a: TG1,
+    pub(crate) c: TFr,
+    pub(crate) z: TFr,
 }
 
-impl<B: EcBackend> Schnorr<B> {
-    pub fn verify(&self, pk: &PublicKey<B>) -> bool {
-        let g = B::G1::generator();
+impl Schnorr {
+    pub fn verify(&self, pk: &PublicKey) -> bool {
+        let g = TG1::generator();
         pk.mul(&self.c).add(&self.a) == g.mul(&self.z)
     }
 
-    pub fn prove(sk: &B::Fr, r: &B::Fr, c: B::Fr) -> Self {
-        let g = B::G1::generator();
+    pub fn prove(sk: &TFr, r: &TFr, c: TFr) -> Self {
+        let g = TG1::generator();
         let a = g.mul(r);
         let z = r.add(&c.mul(sk));
         Self { a, c, z }
@@ -26,18 +30,17 @@ impl<B: EcBackend> Schnorr<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use kzg::{eip_7594::BlstBackend, types::fr::FsFr};
-    type Backend = BlstBackend;
+    use kzg::types::fr::FsFr;
 
     #[test]
     fn test_schnorr() {
-        let g = <Backend as EcBackend>::G1::generator();
+        let g = TG1::generator();
 
         let r = FsFr::from_u64(1337);
         let sk = FsFr::from_u64(42);
         let pk = g.mul(&sk);
         let c = FsFr::from_u64(2137);
-        let proof = Schnorr::<Backend>::prove(&sk, &r, c);
+        let proof = Schnorr::prove(&sk, &r, c);
         assert!(proof.verify(&pk));
     }
 }

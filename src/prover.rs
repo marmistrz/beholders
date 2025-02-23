@@ -1,12 +1,11 @@
 use std::time::Instant;
 
 use beholders::Proof;
-use kzg::{eip_4844::load_trusted_setup_filename_rust, eip_7594::BlstBackend, types::fr::FsFr};
+use kzg::{eip_4844::load_trusted_setup_filename_rust, types::fr::FsFr};
 use kzg_traits::Fr;
 
 const TRUSTED_SETUP_FILE: &str = "trusted_setup.txt";
 
-type Backend = BlstBackend;
 const DIFFICULTY: u32 = 16;
 const NFISCH: usize = 3;
 
@@ -21,7 +20,7 @@ fn main() {
     let start: Instant = Instant::now();
     let data = [1, 2, 3, 4];
     let sk = FsFr::from_u64(2137);
-    let _duration = Proof::<Backend, 8>::prove(&kzg_settings, sk, &data, NFISCH, DIFFICULTY)
+    let _duration = Proof::<8>::prove(&kzg_settings, sk, &data, NFISCH, DIFFICULTY)
         .expect("KZG error")
         .expect("Proof not found");
     let duration = start.elapsed();
