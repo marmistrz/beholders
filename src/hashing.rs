@@ -5,16 +5,20 @@ use sha2::{
     digest::{consts::U128, generic_array::GenericArray},
 };
 
-use crate::schnorr::Schnorr;
+use crate::{
+    commitment::Commitment,
+    schnorr::{PublicKey, Schnorr},
+    types::TG1,
+};
 
 pub(crate) type HashOutput = [u64; 8];
 pub(crate) type Prelude = HashOutput;
 
-pub(crate) fn prelude<TG1: G1>(a_i: impl Iterator<Item = TG1>) -> Prelude {
+pub(crate) fn prelude(pk: &PublicKey, com: &Commitment, a_i: impl Iterator<Item = TG1>) -> Prelude {
     use sha2::Digest;
-    // FIXME: we should hash more than just the a_i's
-    let a_i: Vec<u8> = a_i.flat_map(|x| x.to_bytes()).collect();
-    let hash: [u8; 64] = sha2::Sha512::digest(&a_i).into();
+    let input = vec![*pk, *com].into_iter().chain(a_i);
+    let bytes: Vec<u8> = input.flat_map(|x| x.to_bytes()).collect();
+    let hash: [u8; 64] = sha2::Sha512::digest(&bytes).into();
     bytemuck::cast(hash)
 }
 

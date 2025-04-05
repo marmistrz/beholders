@@ -3,7 +3,7 @@ use kzg_traits::{Fr, G1Mul, KZGSettings, G1};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
 use crate::check;
-use crate::commitment::{get_point, open_all_fk20, Commitment, Opening};
+use crate::commitment::{get_point, interpolate, open_all_fk20, Commitment, Opening};
 use crate::hashing::{derive_indices, individual_hash, pow_pass, prelude, HashOutput, Prelude};
 use crate::schnorr::{PublicKey, Schnorr, SecretKey};
 use crate::types::{TFr, TKZGSettings, TG1};
@@ -27,10 +27,10 @@ pub struct Proof<const M: usize> {
 }
 
 impl<const M: usize> Proof<M> {
-    fn prelude(&self) -> Prelude {
+    fn prelude(&self, pk: &PublicKey, com: &Commitment) -> Prelude {
         // FIXME: we should hash more than just the a_i's
         let a_i = self.base_proofs.iter().map(|x| x.schnorr.a);
-        prelude(a_i)
+        prelude(pk, com, a_i)
     }
 
     /// Verifies the Beholder Signature.
@@ -54,7 +54,7 @@ impl<const M: usize> Proof<M> {
         kzg_settings: &TKZGSettings,
         difficulty: u32,
     ) -> Result<bool, String> {
-        let prelude = self.prelude();
+        let prelude = self.prelude(pk, com);
         for (i, base_proof) in self.base_proofs.iter().enumerate() {
             if !base_proof.verify(i, prelude, pk, com, data_len, kzg_settings, difficulty)? {
                 println!("Failed at base proof {}", i);
@@ -100,8 +100,10 @@ impl<const M: usize> Proof<M> {
         let r_i: Vec<_> = (0..nfisch).map(|_| TFr::rand()).collect();
         let a_i = r_i.iter().map(|r| generator.mul(r));
 
-        // TODO: prelude should contain more
-        let prelude = prelude(a_i);
+        let pk = generator.mul(&sk);
+        let poly = interpolate(kzg_settings.get_fft_settings(), data);
+        let com = kzg_settings.commit_to_poly(&poly).expect("commit");
+        let prelude = prelude(&pk, &com, a_i);
 
         let proofs: Option<Vec<_>> = (0..nfisch)
             .into_par_iter()
