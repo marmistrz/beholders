@@ -1,5 +1,6 @@
 use std::ops::BitXor;
 
+/// Bitwise XOR of two arrays.
 pub(crate) fn bitxor<T: BitXor, const N: usize>(
     x: [T; N],
     y: [T; N],

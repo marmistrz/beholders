@@ -20,11 +20,12 @@ fn main() {
     let start: Instant = Instant::now();
     let data = [1, 2, 3, 4];
     let sk = FsFr::from_u64(2137);
-    let _duration = Proof::<8>::prove(&kzg_settings, sk, &data, NFISCH, DIFFICULTY)
+    let proof = Proof::<8>::prove(&kzg_settings, sk, &data, NFISCH, DIFFICULTY)
         .expect("KZG error")
         .expect("Proof not found");
     let duration = start.elapsed();
     println!("Proving time: {:?}", duration);
+    println!("Proof: {:?}", proof);
 
     // let prover = Prover::<Backend>::new(trusted_setup).unwrap();
     // let duration = start.elapsed();

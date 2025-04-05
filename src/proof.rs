@@ -12,12 +12,16 @@ use crate::util::bitxor;
 const MAXC: u64 = 32 * (u16::MAX as u64);
 
 // TODO include beacon
+/// A single Fischlin iteration of the beholder signature
+#[derive(Debug)]
 pub struct BaseProof<const M: usize> {
     schnorr: Schnorr, // (a, c, z)
     data: [u64; M],
     openings: [Opening; M],
 }
 
+/// A complete beholder signature
+#[derive(Debug)]
 pub struct Proof<const M: usize> {
     pub base_proofs: Vec<BaseProof<M>>,
 }
@@ -262,7 +266,7 @@ mod tests {
     #[test]
     fn test_mining_works() {
         let data = [4, 2137, 383, 4]; //, 5, 1, 5, 7];
-        let byte_difficulty = 1;
+        let bit_difficulty = 1;
 
         let secrets_len = 15;
         let (s1, s2, s3) = generate_trusted_setup(secrets_len, [0; 32]);
@@ -274,7 +278,7 @@ mod tests {
         let pk = g.mul(&sk);
 
         let nfisch = 2;
-        let proof = Proof::<M>::prove(&kzg_settings, sk, &data, nfisch, byte_difficulty)
+        let proof = Proof::<M>::prove(&kzg_settings, sk, &data, nfisch, bit_difficulty)
             .expect("KZG error")
             .expect("No proof found");
         assert_eq!(proof.base_proofs.len(), nfisch);
@@ -286,7 +290,7 @@ mod tests {
         let poly = interpolate(kzg_settings.get_fft_settings(), &data);
         let com = kzg_settings.commit_to_poly(&poly).expect("commit");
         assert!(proof
-            .verify(&pk, &com, data.len(), &kzg_settings, byte_difficulty)
+            .verify(&pk, &com, data.len(), &kzg_settings, bit_difficulty)
             .expect("KZG error"));
     }
 }
