@@ -141,7 +141,7 @@ impl<const M: usize> BaseProof<M> {
 
         // Compute the indices
         let indices = derive_indices(fisch_iter, &self.schnorr.c, M, data_len);
-        let indices: [usize; 8] = indices.try_into().expect("FIXME support m != 8");
+        let indices: [usize; M] = indices.try_into().expect("invalid num_indices");
 
         let mut hash = HashOutput::default();
 
