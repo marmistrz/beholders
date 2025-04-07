@@ -28,7 +28,6 @@ pub(crate) fn get_point<TFr: Fr>(
     &roots[i * stride]
 }
 
-// TODO migrate to this function
 pub fn open_all_fk20(kzg_settings: &TKZGSettings, data: &[u64]) -> Result<Vec<Opening>, String> {
     let fft_settings = kzg_settings.get_fft_settings();
     let fk20_settings = TFK20SingleSettings::new(kzg_settings, 2 * data.len())?;
