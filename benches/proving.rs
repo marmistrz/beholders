@@ -23,7 +23,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     let sk = FsFr::from_u64(2137);
     let r = FsFr::from_u64(1337);
     let bit_difficulty = 14;
-    let openings = open_all_fk20(&kzg_settings, &data).expect("openings");
+    let (_com, openings) = open_all_fk20(&kzg_settings, &data).expect("openings");
     assert_eq!(openings.len(), data.len());
 
     let fisch_iter = 0;

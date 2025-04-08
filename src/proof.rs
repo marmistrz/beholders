@@ -3,7 +3,7 @@ use kzg_traits::{Fr, G1Mul, KZGSettings, G1};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
 use crate::check;
-use crate::commitment::{get_point, interpolate, open_all_fk20, Commitment, Opening};
+use crate::commitment::{get_point, open_all_fk20, Commitment, Opening};
 use crate::hashing::{derive_indices, individual_hash, pow_pass, prelude, HashOutput, Prelude};
 use crate::schnorr::{PublicKey, Schnorr, SecretKey};
 use crate::types::{TFr, TKZGSettings, TG1};
@@ -94,15 +94,13 @@ impl<const M: usize> Proof<M> {
         let generator = TG1::generator();
         // Compute the openings
         // TODO: this interally computes an FFT, which should be avoided
-        let openings: Vec<Opening> = open_all_fk20(kzg_settings, data)?;
+        let (com, openings) = open_all_fk20(kzg_settings, data)?;
 
         // Compute the Schnorr commitment
         let r_i: Vec<_> = (0..nfisch).map(|_| TFr::rand()).collect();
         let a_i = r_i.iter().map(|r| generator.mul(r));
 
         let pk = generator.mul(&sk);
-        let poly = interpolate(kzg_settings.get_fft_settings(), data);
-        let com = kzg_settings.commit_to_poly(&poly).expect("commit");
         let prelude = prelude(&pk, &com, a_i);
 
         let proofs: Option<Vec<_>> = (0..nfisch)
@@ -228,7 +226,7 @@ mod tests {
         let fs = FsFFTSettings::new(4).unwrap();
         let kzg_settings: FsKZGSettings = FsKZGSettings::new(&s1, &s2, &s3, &fs, 7).unwrap();
 
-        let openings = open_all_fk20(&kzg_settings, &data).expect("openings");
+        let (_com, openings) = open_all_fk20(&kzg_settings, &data).expect("openings");
         assert_eq!(openings.len(), data.len());
 
         let g = TG1::generator();

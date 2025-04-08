@@ -28,17 +28,22 @@ pub(crate) fn get_point<TFr: Fr>(
     &roots[i * stride]
 }
 
-pub fn open_all_fk20(kzg_settings: &TKZGSettings, data: &[u64]) -> Result<Vec<Opening>, String> {
+pub fn open_all_fk20(
+    kzg_settings: &TKZGSettings,
+    data: &[u64],
+) -> Result<(Commitment, Vec<Opening>), String> {
     let fft_settings = kzg_settings.get_fft_settings();
     let fk20_settings = TFK20SingleSettings::new(kzg_settings, 2 * data.len())?;
     let poly: TPoly = interpolate(fft_settings, data);
+    let com = kzg_settings.commit_to_poly(&poly)?;
     let fk20 = fk20_settings.data_availability_optimized(&poly)?;
-    Ok(fk20
+    let openings = fk20
         .into_iter()
         .enumerate()
         .filter(|(i, _)| i % 2 == 0)
         .map(|(_, x)| x)
-        .collect())
+        .collect();
+    Ok((com, openings))
 }
 
 #[cfg(test)]
@@ -230,7 +235,7 @@ mod tests {
         // Commit to the polynomial
         let data: [u64; 4] = [4, 2137, 383, 4]; //, 5, 1, 5, 7];
 
-        let all_proofs = open_all_fk20(&ks, &data).unwrap();
+        let (_com, all_proofs) = open_all_fk20(&ks, &data).unwrap();
         let direct = open_all(&ks, &data).unwrap();
         assert_eq!(all_proofs, direct);
     }
