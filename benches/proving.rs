@@ -9,7 +9,7 @@ const M: usize = 8;
 const TRUSTED_SETUP_FILE: &str = "trusted_setup.txt";
 
 pub fn criterion_benchmark(c: &mut Criterion) {
-    let data = (0..128).collect::<Vec<u64>>();
+    let data = (0..1024).collect::<Vec<u64>>();
 
     let kzg_settings =
         load_trusted_setup_filename_rust(TRUSTED_SETUP_FILE).expect("loading trusted setup");
@@ -65,7 +65,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
 criterion_group! {
     name = benches;
     config = Criterion::default()
-        .measurement_time(Duration::from_secs(15));
+        .measurement_time(Duration::from_secs(90));
     targets = criterion_benchmark
 }
 criterion_main!(benches);
