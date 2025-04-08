@@ -57,10 +57,15 @@ pub(crate) fn derive_indices(
 pub(crate) fn individual_hash(
     prelude: Prelude,
     schnorr: &Schnorr,
+    fisch_iter: usize,
     k: u8,
     val: u64,
     opening: &impl G1,
 ) -> HashOutput {
+    let fisch_iter: u16 = fisch_iter
+        .try_into()
+        .expect("At most 2^16 Fischlin iterations supported");
+
     let mut state: HashOutput = prelude;
     let mut input = [0u8; 128];
 
@@ -72,6 +77,7 @@ pub(crate) fn individual_hash(
     input[80..112].clone_from_slice(&z.to_bytes());
     input[112..120].clone_from_slice(&val.to_le_bytes());
     input[120] = k;
+    input[121..123].clone_from_slice(&fisch_iter.to_le_bytes());
 
     let blocks: &GenericArray<_, U128> = GenericArray::from_slice(&input); //[c.to_bytes(), pad].iter().flatten().into();
     compress512(&mut state, &[*blocks]);
@@ -125,7 +131,8 @@ mod tests {
     fn test_invididual_hash() {
         let schnorr = Schnorr::prove(&Default::default(), &Default::default(), Default::default());
         let prelude = [0u64; 8];
+        let fisch_iter = 0;
         let opening = FsG1::generator();
-        individual_hash(prelude, &schnorr, 0, 0, &opening);
+        individual_hash(prelude, &schnorr, fisch_iter, 0, 0, &opening);
     }
 }

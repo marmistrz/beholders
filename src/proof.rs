@@ -71,7 +71,7 @@ impl<const M: usize> Proof<M> {
     ///
     /// * `kzg_settings` - KZG trusted setup.
     /// * `sk` - Schnorr secret key.
-    /// * `data` - The data to be proven. The length of the data must be a power of two.
+    /// * `data` - The data to be proven. The length of the data must be a power of two and is assumed to be error-corrected.
     /// * `nfisch` - Number of Fischlin proofs to generate.
     /// * `difficulty` - The bit difficulty, i.e., the required number of leading zeros.
     ///
@@ -86,7 +86,6 @@ impl<const M: usize> Proof<M> {
         nfisch: usize,
         difficulty: u32,
     ) -> Result<Option<Self>, String> {
-        // TODO: missing error correction
         assert!(
             data.len().is_power_of_two(),
             "Data length must be a power of two"
@@ -94,6 +93,7 @@ impl<const M: usize> Proof<M> {
 
         let generator = TG1::generator();
         // Compute the openings
+        // TODO: this interally computes an FFT, which should be avoided
         let openings: Vec<Opening> = open_all_fk20(kzg_settings, data)?;
 
         // Compute the Schnorr commitment
@@ -155,7 +155,8 @@ impl<const M: usize> BaseProof<M> {
 
             check!(kzg_settings.check_proof_single(com, opening, x, &val)?);
 
-            let partial_pow = individual_hash(prelude, &self.schnorr, k, value, opening);
+            let partial_pow =
+                individual_hash(prelude, &self.schnorr, fisch_iter, k, value, opening);
             hash = bitxor(hash, partial_pow);
         }
 
@@ -186,7 +187,7 @@ impl<const M: usize> BaseProof<M> {
             let mut hash = HashOutput::default();
             for (k, (val, opening)) in izip!(data.iter(), openings.iter()).enumerate() {
                 let k = k.try_into().unwrap();
-                let partial_pow = individual_hash(prelude, &schnorr, k, *val, *opening);
+                let partial_pow = individual_hash(prelude, &schnorr, fisch_iter, k, *val, *opening);
 
                 hash = bitxor(hash, partial_pow);
             }
