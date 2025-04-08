@@ -36,7 +36,7 @@ fn main() -> anyhow::Result<()> {
     println!("Proving...");
     let start: Instant = Instant::now();
 
-    let proof = Proof::<8>::prove(&kzg_settings, sk, &data, NFISCH, DIFFICULTY)
+    let proof = Proof::<8>::prove(&kzg_settings, sk, data, NFISCH, DIFFICULTY)
         .map_err(anyhow::Error::msg)
         .context("KZG error")?
         .context("Beholder signature failure")?;
