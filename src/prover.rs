@@ -1,6 +1,8 @@
-use std::time::Instant;
+use std::{fs, time::Instant};
 
+use anyhow::Context;
 use beholders::Proof;
+use clap::Parser;
 use kzg::{eip_4844::load_trusted_setup_filename_rust, types::fr::FsFr};
 use kzg_traits::Fr;
 
@@ -9,8 +11,23 @@ const TRUSTED_SETUP_FILE: &str = "trusted_setup.txt";
 const DIFFICULTY: u32 = 16;
 const NFISCH: usize = 3;
 
-fn main() {
+#[derive(Parser)]
+struct Cli {
+    /// The path to the file containing the data
+    #[arg(index = 1)]
+    data: std::path::PathBuf,
+}
+
+fn main() -> anyhow::Result<()> {
+    let args = Cli::parse();
+
+    let data = fs::read(&args.data).context(format!("Unable to read file: {:?}", args.data))?;
+    let data: &[u64] = bytemuck::try_cast_slice(&data).unwrap();
+    println!("Num chunks: {}", data.len());
+    let sk = FsFr::from_u64(2137);
+
     let start: Instant = Instant::now();
+    println!("Loading trusted setup...");
     let kzg_settings =
         load_trusted_setup_filename_rust(TRUSTED_SETUP_FILE).expect("loading trusted setup");
     let duration = start.elapsed();
@@ -18,14 +35,16 @@ fn main() {
 
     println!("Proving...");
     let start: Instant = Instant::now();
-    let data = [1, 2, 3, 4];
-    let sk = FsFr::from_u64(2137);
+
     let proof = Proof::<8>::prove(&kzg_settings, sk, &data, NFISCH, DIFFICULTY)
-        .expect("KZG error")
-        .expect("Proof not found");
+        .map_err(anyhow::Error::msg)
+        .context("KZG error")?
+        .context("Beholder signature failure")?;
     let duration = start.elapsed();
     println!("Proving time: {:?}", duration);
     println!("Proof: {:?}", proof);
+
+    Ok(())
 
     // let prover = Prover::<Backend>::new(trusted_setup).unwrap();
     // let duration = start.elapsed();

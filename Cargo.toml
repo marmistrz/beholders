@@ -13,7 +13,9 @@ path = "src/verifier.rs"
 
 
 [dependencies]
+anyhow = "1.0.97"
 bytemuck = "1.21.0"
+clap = { version = "4.5.35", features = ["derive"] }
 itertools = "0.14.0"
 kzg = { git = "https://github.com/marmistrz/rust-kzg.git", package = "rust-kzg-blst" }
 kzg_traits = { git = "https://github.com/marmistrz/rust-kzg.git", package = "kzg" }
