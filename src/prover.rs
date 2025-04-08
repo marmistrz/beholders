@@ -16,16 +16,18 @@ fn main() {
     let duration = start.elapsed();
     println!("Initialization time: {:?}", duration);
 
-    println!("Proving...");
-    let start: Instant = Instant::now();
-    let data = [1, 2, 3, 4];
-    let sk = FsFr::from_u64(2137);
-    let proof = Proof::<8>::prove(&kzg_settings, sk, &data, NFISCH, DIFFICULTY)
-        .expect("KZG error")
-        .expect("Proof not found");
-    let duration = start.elapsed();
-    println!("Proving time: {:?}", duration);
-    println!("Proof: {:?}", proof);
+    // println!("Proving...");
+    // let start: Instant = Instant::now();
+    // let data = [1, 2, 3, 4];
+    // // let data = read_from_file....
+    // // let ec_data = ...
+    // let sk = FsFr::from_u64(2137);
+    // let proof = Proof::<8>::prove(&kzg_settings, sk, &data, NFISCH, DIFFICULTY)
+    //     .expect("KZG error")
+    //     .expect("Proof not found");
+    // let duration = start.elapsed();
+    // println!("Proving time: {:?}", duration);
+    // println!("Proof: {:?}", proof);
 
     // let prover = Prover::<Backend>::new(trusted_setup).unwrap();
     // let duration = start.elapsed();

@@ -8,7 +8,7 @@ use sha2::{
 use crate::{
     commitment::Commitment,
     schnorr::{PublicKey, Schnorr},
-    types::TG1,
+    types::{TFr, TG1},
 };
 
 pub(crate) type HashOutput = [u64; 8];
@@ -58,7 +58,7 @@ pub(crate) fn individual_hash(
     prelude: Prelude,
     schnorr: &Schnorr,
     k: u8,
-    val: u64,
+    val: TFr,
     opening: &impl G1,
 ) -> HashOutput {
     let mut state: HashOutput = prelude;
@@ -70,7 +70,7 @@ pub(crate) fn individual_hash(
     input[0..48].clone_from_slice(&opening.to_bytes());
     input[48..80].clone_from_slice(&c.to_bytes());
     input[80..112].clone_from_slice(&z.to_bytes());
-    input[112..120].clone_from_slice(&val.to_le_bytes());
+    input[112..120].clone_from_slice(&val.to_bytes());
     input[120] = k;
 
     let blocks: &GenericArray<_, U128> = GenericArray::from_slice(&input); //[c.to_bytes(), pad].iter().flatten().into();
@@ -126,6 +126,6 @@ mod tests {
         let schnorr = Schnorr::prove(&Default::default(), &Default::default(), Default::default());
         let prelude = [0u64; 8];
         let opening = FsG1::generator();
-        individual_hash(prelude, &schnorr, 0, 0, &opening);
+        individual_hash(prelude, &schnorr, 0, TFr::zero(), &opening);
     }
 }

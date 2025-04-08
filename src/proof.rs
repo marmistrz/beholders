@@ -1,12 +1,12 @@
 use itertools::izip;
-use kzg_traits::{Fr, G1Mul, KZGSettings, G1};
+use kzg_traits::{Fr, G1Mul, KZGSettings, Poly, G1};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
 use crate::check;
 use crate::commitment::{get_point, interpolate, open_all_fk20, Commitment, Opening};
 use crate::hashing::{derive_indices, individual_hash, pow_pass, prelude, HashOutput, Prelude};
 use crate::schnorr::{PublicKey, Schnorr, SecretKey};
-use crate::types::{TFr, TKZGSettings, TG1};
+use crate::types::{TFr, TKZGSettings, TPoly, TG1};
 use crate::util::bitxor;
 
 const MAXC: u64 = 32 * (u16::MAX as u64);
@@ -16,7 +16,7 @@ const MAXC: u64 = 32 * (u16::MAX as u64);
 #[derive(Debug)]
 pub struct BaseProof<const M: usize> {
     schnorr: Schnorr, // (a, c, z)
-    data: [u64; M],
+    data: [TFr; M],
     openings: [Opening; M],
 }
 
@@ -71,7 +71,7 @@ impl<const M: usize> Proof<M> {
     ///
     /// * `kzg_settings` - KZG trusted setup.
     /// * `sk` - Schnorr secret key.
-    /// * `data` - The data to be proven. The length of the data must be a power of two.
+    /// * `data` - The data to be proven. The data is expected to already have been erasure coded.
     /// * `nfisch` - Number of Fischlin proofs to generate.
     /// * `difficulty` - The bit difficulty, i.e., the required number of leading zeros.
     ///
@@ -82,27 +82,20 @@ impl<const M: usize> Proof<M> {
     pub fn prove(
         kzg_settings: &TKZGSettings,
         sk: SecretKey,
-        data: &[u64],
+        data: &TPoly,
         nfisch: usize,
         difficulty: u32,
     ) -> Result<Option<Self>, String> {
-        // TODO: missing error correction
-        assert!(
-            data.len().is_power_of_two(),
-            "Data length must be a power of two"
-        );
-
         let generator = TG1::generator();
         // Compute the openings
         let openings: Vec<Opening> = open_all_fk20(kzg_settings, data)?;
-
+        let evaluations = todo!("do a fft here");
         // Compute the Schnorr commitment
         let r_i: Vec<_> = (0..nfisch).map(|_| TFr::rand()).collect();
         let a_i = r_i.iter().map(|r| generator.mul(r));
 
         let pk = generator.mul(&sk);
-        let poly = interpolate(kzg_settings.get_fft_settings(), data);
-        let com = kzg_settings.commit_to_poly(&poly).expect("commit");
+        let com = kzg_settings.commit_to_poly(&data).expect("commit");
         let prelude = prelude(&pk, &com, a_i);
 
         let proofs: Option<Vec<_>> = (0..nfisch)
@@ -111,10 +104,10 @@ impl<const M: usize> Proof<M> {
                 BaseProof::<M>::prove(
                     fisch_iter,
                     prelude,
+                    evaluations,
                     &openings,
                     &r_i[fisch_iter],
                     &sk,
-                    data,
                     difficulty,
                 )
             })
@@ -124,6 +117,7 @@ impl<const M: usize> Proof<M> {
 }
 
 impl<const M: usize> BaseProof<M> {
+    #[allow(clippy::too_many_arguments)]
     fn verify(
         &self,
         fisch_iter: usize,
@@ -150,10 +144,9 @@ impl<const M: usize> BaseProof<M> {
             izip!(indices.into_iter().enumerate(), self.data, &self.openings)
         {
             let k = k.try_into().unwrap();
-            let val = TFr::from_u64(value);
             let x = get_point(fft_settings, data_len, idx);
 
-            check!(kzg_settings.check_proof_single(com, opening, x, &val)?);
+            check!(kzg_settings.check_proof_single(com, opening, x, &value)?);
 
             let partial_pow = individual_hash(prelude, &self.schnorr, k, value, opening);
             hash = bitxor(hash, partial_pow);
@@ -168,19 +161,25 @@ impl<const M: usize> BaseProof<M> {
     pub fn prove(
         fisch_iter: usize,
         prelude: Prelude,
+        evaluations: &[TFr],
         openings: &[Opening],
         r: &TFr,
         sk: &SecretKey,
-        data: &[u64],
         difficulty: u32,
     ) -> Option<Self> {
+        assert_eq!(
+            evaluations.len(),
+            openings.len(),
+            "openings and evaluations must have the same length"
+        );
+
         for c in 0..MAXC {
             let c = TFr::from_u64(c);
             let schnorr = Schnorr::prove(sk, r, c);
 
-            let indices = derive_indices(fisch_iter, &c, M, data.len());
-            let indices: [usize; 8] = indices.try_into().expect("FIXME support m != 8");
-            let data: Vec<_> = indices.iter().map(|&i| data[i]).collect();
+            let indices = derive_indices(fisch_iter, &c, M, evaluations.len());
+            let indices: [usize; M] = indices.try_into().expect("invalid num_indices");
+            let data: Vec<_> = indices.iter().map(|&i| evaluations[i]).collect();
             let openings: Vec<_> = indices.iter().map(|&i| &openings[i]).collect();
 
             let mut hash = HashOutput::default();
@@ -221,78 +220,80 @@ mod tests {
     fn test_base_proof() {
         //, 5, 1, 5, 7];
         let data = [4, 2137, 383, 4];
+        todo!();
 
-        let secrets_len = 15;
-        let (s1, s2, s3) = generate_trusted_setup(secrets_len, [0; 32]);
-        let fs = FsFFTSettings::new(4).unwrap();
-        let kzg_settings: FsKZGSettings = FsKZGSettings::new(&s1, &s2, &s3, &fs, 7).unwrap();
+        // let secrets_len = 15;
+        // let (s1, s2, s3) = generate_trusted_setup(secrets_len, [0; 32]);
+        // let fs = FsFFTSettings::new(4).unwrap();
+        // let kzg_settings: FsKZGSettings = FsKZGSettings::new(&s1, &s2, &s3, &fs, 7).unwrap();
 
-        let openings = open_all_fk20(&kzg_settings, &data).expect("openings");
-        assert_eq!(openings.len(), data.len());
+        // let openings = open_all_fk20(&kzg_settings, &data).expect("openings");
+        // assert_eq!(openings.len(), data.len());
 
-        let g = TG1::generator();
-        let r = FsFr::from_u64(1337);
-        let sk = SecretKey::from_u64(2137);
-        let pk = g.mul(&sk);
-        let byte_difficulty = 1;
+        // let g = TG1::generator();
+        // let r = FsFr::from_u64(1337);
+        // let sk = SecretKey::from_u64(2137);
+        // let pk = g.mul(&sk);
+        // let byte_difficulty = 1;
 
-        let fisch_iter = 0;
-        let prelude = [0; 8];
+        // let fisch_iter = 0;
+        // let prelude = [0; 8];
 
-        let proof = BaseProof::<M>::prove(
-            fisch_iter,
-            prelude,
-            &openings,
-            &r,
-            &sk,
-            &data,
-            byte_difficulty,
-        )
-        .expect("No proof found");
+        // let proof = BaseProof::<M>::prove(
+        //     fisch_iter,
+        //     prelude,
+        //     &openings,
+        //     &r,
+        //     &sk,
+        //     &data,
+        //     byte_difficulty,
+        // )
+        // .expect("No proof found");
 
-        let poly = interpolate(kzg_settings.get_fft_settings(), &data);
-        let com = kzg_settings.commit_to_poly(&poly).expect("commit");
-        assert!(proof
-            .verify(
-                fisch_iter,
-                prelude,
-                &pk,
-                &com,
-                data.len(),
-                &kzg_settings,
-                byte_difficulty
-            )
-            .expect("KZG error"));
+        // let poly = interpolate(kzg_settings.get_fft_settings(), &data);
+        // let com = kzg_settings.commit_to_poly(&poly).expect("commit");
+        // assert!(proof
+        //     .verify(
+        //         fisch_iter,
+        //         prelude,
+        //         &pk,
+        //         &com,
+        //         data.len(),
+        //         &kzg_settings,
+        //         byte_difficulty
+        //     )
+        //     .expect("KZG error"));
     }
 
     #[test]
     fn test_mining_works() {
-        let data = [4, 2137, 383, 4]; //, 5, 1, 5, 7];
+        let data: Vec<_> = [4, 2137, 383, 4].into_iter().map(TFr::from_u64).collect(); //, 5, 1, 5, 7];
         let bit_difficulty = 1;
+        todo!()
 
-        let secrets_len = 15;
-        let (s1, s2, s3) = generate_trusted_setup(secrets_len, [0; 32]);
-        let fs = FsFFTSettings::new(4).unwrap();
-        let kzg_settings: FsKZGSettings = FsKZGSettings::new(&s1, &s2, &s3, &fs, 7).unwrap();
+        // let secrets_len = 15;
+        // let (s1, s2, s3) = generate_trusted_setup(secrets_len, [0; 32]);
+        // let fs = FsFFTSettings::new(4).unwrap();
+        // let kzg_settings: FsKZGSettings = FsKZGSettings::new(&s1, &s2, &s3, &fs, 7).unwrap();
 
-        let g = TG1::generator();
-        let sk = SecretKey::from_u64(2137);
-        let pk = g.mul(&sk);
+        // let g = TG1::generator();
+        // let sk = SecretKey::from_u64(2137);
+        // let pk = g.mul(&sk);
 
-        let nfisch = 2;
-        let proof = Proof::<M>::prove(&kzg_settings, sk, &data, nfisch, bit_difficulty)
-            .expect("KZG error")
-            .expect("No proof found");
-        assert_eq!(proof.base_proofs.len(), nfisch);
-        for base_proof in &proof.base_proofs {
-            assert_eq!(base_proof.data.len(), M);
-            assert!(base_proof.schnorr.verify(&pk));
-        }
+        // let nfisch = 2;
+        // let proof = Proof::<M>::prove(&kzg_settings, sk, &data, nfisch, bit_difficulty)
+        //     .expect("KZG error")
+        //     .expect("No proof found");
+        // assert_eq!(proof.base_proofs.len(), nfisch);
+        // for base_proof in &proof.base_proofs {
+        //     assert_eq!(base_proof.data.len(), M);
+        //     assert!(base_proof.schnorr.verify(&pk));
+        // }
 
-        let poly = interpolate(kzg_settings.get_fft_settings(), &data);
-        let com = kzg_settings.commit_to_poly(&poly).expect("commit");
-        assert!(proof
-            .verify(&pk, &com, data.len(), &kzg_settings, bit_difficulty)
-            .expect("KZG error"));
+        // let poly = interpolate(kzg_settings.get_fft_settings(), &data);
+        // let com = kzg_settings.commit_to_poly(&poly).expect("commit");
+        // assert!(proof
+        //     .verify(&pk, &com, data.len(), &kzg_settings, bit_difficulty)
+        //     .expect("KZG error"));
     }
 }
