@@ -9,8 +9,6 @@ use crate::schnorr::{PublicKey, Schnorr, SecretKey};
 use crate::types::{TFr, TKZGSettings, TG1};
 use crate::util::bitxor;
 
-const MAXC: u64 = 32 * (u16::MAX as u64);
-
 // TODO include beacon
 /// A single Fischlin iteration of the beholder signature
 #[derive(Debug)]
@@ -173,7 +171,8 @@ impl<const M: usize> BaseProof<M> {
         data: &[u64],
         difficulty: u32,
     ) -> Option<Self> {
-        for c in 0..MAXC {
+        let maxc = 1u64 << (difficulty + 5);
+        for c in 0..maxc {
             let c = TFr::from_u64(c);
             let schnorr = Schnorr::prove(sk, r, c);
 

@@ -8,7 +8,7 @@ use kzg_traits::Fr;
 
 const TRUSTED_SETUP_FILE: &str = "trusted_setup.txt";
 
-const BIT_DIFFICULTY: u32 = 12;
+const BIT_DIFFICULTY: u32 = 22;
 const NFISCH: usize = 64;
 
 #[derive(Parser)]
@@ -36,10 +36,10 @@ fn main() -> anyhow::Result<()> {
     println!("Proving...");
     let start: Instant = Instant::now();
 
-    let proof = Proof::<8>::prove(&kzg_settings, sk, data, NFISCH, BIT_DIFFICULTY)
+    let _proof = Proof::<8>::prove(&kzg_settings, sk, data, NFISCH, BIT_DIFFICULTY)
         .map_err(anyhow::Error::msg)
         .context("KZG error")?
-        .context("Beholder signature failure")?;
+        .context("Could not find solve the proof-of-work in the beholder signature")?;
     let duration = start.elapsed();
     println!("Proving time: {:?}", duration);
     // println!("Proof: {:?}", proof);
