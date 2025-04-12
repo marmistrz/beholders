@@ -36,10 +36,20 @@ pub(crate) fn derive_indices(
     let blocks: &GenericArray<_, U128> = GenericArray::from_slice(&input);
     compress512(&mut state, &[*blocks]);
 
-    assert!(num_indices <= 8, "FIXME support m > 8");
+    let state: [u16; 32] = bytemuck::cast(state);
+
+    assert!(
+        data_len <= u16::MAX as usize,
+        "Data has more than {} blocks",
+        u16::MAX
+    );
+    assert!(
+        num_indices <= 32,
+        "At most 32 indices per transcript supported"
+    );
     state
         .map(|x| {
-            let x: usize = x.try_into().unwrap();
+            let x: usize = x.into();
             x % data_len
         })
         .into_iter()
