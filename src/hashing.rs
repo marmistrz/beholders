@@ -28,16 +28,6 @@ pub(crate) fn derive_indices(
     num_indices: usize,
     data_len: usize,
 ) -> Vec<usize> {
-    let mut state = [0u64; 8];
-    let mut input = [0u8; 128];
-    input[0..8].clone_from_slice(&i.to_le_bytes());
-    input[8..40].clone_from_slice(&c.to_bytes());
-
-    let blocks: &GenericArray<_, U128> = GenericArray::from_slice(&input);
-    compress512(&mut state, &[*blocks]);
-
-    let state: [u16; 32] = bytemuck::cast(state);
-
     assert!(
         data_len <= u16::MAX as usize,
         "Data has more than {} blocks",
@@ -47,6 +37,16 @@ pub(crate) fn derive_indices(
         num_indices <= 32,
         "At most 32 indices per transcript supported"
     );
+
+    let mut state = [0u64; 8];
+    let mut input = [0u8; 128];
+    input[0..8].clone_from_slice(&i.to_le_bytes());
+    input[8..40].clone_from_slice(&c.to_bytes());
+
+    let blocks: &GenericArray<_, U128> = GenericArray::from_slice(&input);
+    compress512(&mut state, &[*blocks]);
+
+    let state: [u16; 32] = bytemuck::cast(state);
     state
         .map(|x| {
             let x: usize = x.into();
