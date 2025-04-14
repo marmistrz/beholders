@@ -3,13 +3,21 @@ use std::{fs, time::Instant};
 use anyhow::Context;
 use beholders::Proof;
 use clap::Parser;
-use kzg::{eip_4844::load_trusted_setup_filename_rust, types::fr::FsFr};
-use kzg_traits::Fr;
+use kzg::{
+    eip_4844::load_trusted_setup_filename_rust,
+    types::{
+        fft_settings::FsFFTSettings,
+        fr::FsFr,
+        kzg_settings::{self, FsKZGSettings},
+    },
+    utils::generate_trusted_setup,
+};
+use kzg_traits::{FFTSettings, Fr, KZGSettings};
 
 const TRUSTED_SETUP_FILE: &str = "trusted_setup.txt";
 
-const BIT_DIFFICULTY: u32 = 22;
-const NFISCH: usize = 64;
+const BIT_DIFFICULTY: u32 = 14;
+const NFISCH: usize = 10;
 
 #[derive(Parser)]
 struct Cli {
@@ -22,22 +30,27 @@ fn main() -> anyhow::Result<()> {
     let args = Cli::parse();
 
     let data = fs::read(&args.data).context(format!("Unable to read file: {:?}", args.data))?;
-    let data: &[u64] = bytemuck::try_cast_slice(&data).unwrap();
-    println!("Num chunks: {}", data.len());
+    // let data: &[u64] = bytemuck::try_cast_slice(&data).unwrap();
+    println!("Num chunks: {}", data.len() / 32);
     let sk = FsFr::from_u64(2137);
     let mvalue = 16;
 
     let start: Instant = Instant::now();
     println!("Loading trusted setup...");
+    let secrets_len = 32768;
+    let (s1, s2, s3) = generate_trusted_setup(secrets_len, [0; 32]);
+    let fs = FsFFTSettings::new(16).unwrap();
     let kzg_settings =
-        load_trusted_setup_filename_rust(TRUSTED_SETUP_FILE).expect("loading trusted setup");
+        FsKZGSettings::new(&s1, &s2, &s3, &fs, kzg_traits::eth::FIELD_ELEMENTS_PER_CELL).unwrap();
+    // let kzg_settings =
+    //     load_trusted_setup_filename_rust(TRUSTED_SETUP_FILE).expect("loading trusted setup");
     let duration = start.elapsed();
     println!("Initialization time: {:?}", duration);
 
     println!("Proving...");
     let start: Instant = Instant::now();
 
-    let _proof = Proof::prove(&kzg_settings, sk, data, NFISCH, BIT_DIFFICULTY, mvalue)
+    let _proof = Proof::prove(&kzg_settings, sk, &data, NFISCH, BIT_DIFFICULTY, mvalue)
         .map_err(anyhow::Error::msg)
         .context("KZG error")?
         .context("Could not find solve the proof-of-work in the beholder signature")?;
