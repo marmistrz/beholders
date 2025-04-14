@@ -154,7 +154,7 @@ mod tests {
             .map(TFr::from_u64)
             .collect();
 
-        let secrets_len = 15;
+        let secrets_len = 16;
         let (s1, s2, s3) = generate_trusted_setup(secrets_len, [0; 32]);
         let fs = FsFFTSettings::new(4).unwrap();
         let kzg_settings: FsKZGSettings = FsKZGSettings::new(&s1, &s2, &s3, &fs, 7).unwrap();
@@ -223,21 +223,21 @@ mod tests {
 
     #[test]
     fn test_open_all_matches() {
-        let n: usize = 5;
-        let n_len: usize = 1 << n;
-        let secrets_len = n_len + 1;
+        // let n: usize = 5;
+        // let n_len: usize = 1 << n;
+        // let secrets_len = 2 * n_len;
 
-        // assert!(n_len >= 2 * poly_len);
+        // // assert!(n_len >= 2 * poly_len);
 
-        // FIXME: this also fails with the trusted setup
-        // Initialise the secrets and data structures
-        let (s1, s2, s3) = generate_trusted_setup(secrets_len, [0; 32]);
-        let fs = FsFFTSettings::new(n).unwrap();
-        let ks = FsKZGSettings::new(&s1, &s2, &s3, &fs, 4).unwrap();
+        // // FIXME: this also fails with the trusted setup
+        // // Initialise the secrets and data structures
+        // let (s1, s2, s3) = generate_trusted_setup(secrets_len, [0; 32]);
+        // let fs = FsFFTSettings::new(n).unwrap();
+        // let ks = FsKZGSettings::new(&s1, &s2, &s3, &fs, 4).unwrap();
 
-        // const TRUSTED_SETUP_FILE: &str = "trusted_setup.txt";
-        // let ks = kzg::eip_4844::load_trusted_setup_filename_rust(TRUSTED_SETUP_FILE)
-        //     .expect("loading trusted setup");
+        const TRUSTED_SETUP_FILE: &str = "trusted_setup.txt";
+        let ks = kzg::eip_4844::load_trusted_setup_filename_rust(TRUSTED_SETUP_FILE)
+            .expect("loading trusted setup");
 
         // Commit to the polynomial
         let data: Vec<TFr> = vec![4, 2137, 383, 4]
