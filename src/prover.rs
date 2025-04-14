@@ -37,7 +37,7 @@ fn main() -> anyhow::Result<()> {
     println!("Proving...");
     let start: Instant = Instant::now();
 
-    let _proof = Proof::<16>::prove(&kzg_settings, sk, data, NFISCH, BIT_DIFFICULTY, mvalue)
+    let _proof = Proof::prove(&kzg_settings, sk, data, NFISCH, BIT_DIFFICULTY, mvalue)
         .map_err(anyhow::Error::msg)
         .context("KZG error")?
         .context("Could not find solve the proof-of-work in the beholder signature")?;

@@ -32,7 +32,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     // Benchmark the Fischlin Mining
     c.bench_function("base_mining", |b| {
         b.iter(|| {
-            BaseProof::<M>::prove(
+            BaseProof::prove(
                 black_box(fisch_iter),
                 black_box(prelude),
                 black_box(&openings),
@@ -40,6 +40,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
                 black_box(&sk),
                 black_box(&data),
                 bit_difficulty,
+                M,
             )
             .expect("No proof found");
         })
@@ -49,12 +50,13 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     let bit_difficulty = 14;
     c.bench_function("full_mining", |b| {
         b.iter(|| {
-            Proof::<M>::prove(
+            Proof::prove(
                 &kzg_settings,
                 black_box(sk),
                 black_box(&data),
                 black_box(nfisch),
                 bit_difficulty,
+                M,
             )
             .expect("KZG error")
             .expect("No proof found");

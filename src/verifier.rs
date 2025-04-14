@@ -5,7 +5,7 @@ const DIFFICULTY: u32 = 16;
 const MVALUE: usize = 16;
 
 fn main() {
-    let proof = Proof::<N_INDICES> {
+    let proof = Proof {
         base_proofs: vec![],
     };
     assert!(proof

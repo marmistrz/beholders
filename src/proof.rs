@@ -12,19 +12,19 @@ use crate::util::bitxor;
 // TODO include beacon
 /// A single Fischlin iteration of the beholder signature
 #[derive(Debug)]
-pub struct BaseProof<const M: usize> {
+pub struct BaseProof {
     schnorr: Schnorr, // (a, c, z)
-    data: [u64; M],
-    openings: [Opening; M],
+    data: Vec<u64>,
+    openings: Vec<Opening>,
 }
 
 /// A complete beholder signature
 #[derive(Debug)]
-pub struct Proof<const M: usize> {
-    pub base_proofs: Vec<BaseProof<M>>,
+pub struct Proof {
+    pub base_proofs: Vec<BaseProof>,
 }
 
-impl<const M: usize> Proof<M> {
+impl Proof {
     fn prelude(&self, pk: &PublicKey, com: &Commitment) -> Prelude {
         let a_i = self.base_proofs.iter().map(|x| x.schnorr.a);
         prelude(pk, com, a_i)
@@ -113,7 +113,7 @@ impl<const M: usize> Proof<M> {
         let proofs: Option<Vec<_>> = (0..nfisch)
             .into_par_iter()
             .map(|fisch_iter| {
-                BaseProof::<M>::prove(
+                BaseProof::prove(
                     fisch_iter,
                     prelude,
                     &openings,
@@ -129,7 +129,7 @@ impl<const M: usize> Proof<M> {
     }
 }
 
-impl<const M: usize> BaseProof<M> {
+impl BaseProof {
     fn verify(
         &self,
         fisch_iter: usize,
@@ -149,27 +149,27 @@ impl<const M: usize> BaseProof<M> {
         // Compute the indices as a Vec<usize>
         let indices: Vec<usize> = derive_indices(fisch_iter, &self.schnorr.c, mvalue, data_len);
         // Ensure that we have the correct number of indices.
-        if indices.len() != mvalue {
-            return Err("invalid num_indices".to_string());
-        }
+        assert_eq!(indices.len(), mvalue);
+
         // Compute the indices
         //let indices = derive_indices(fisch_iter, &self.schnorr.c, mvalue, data_len);
         //let indices: [usize; mvalue] = indices.try_into().expect("invalid num_indices");
 
         let mut hash = HashOutput::default();
 
+        assert_eq!(self.data.len(), self.openings.len());
         // Verify openings and accumulate PoW
         for ((k, idx), value, opening) in
-            izip!(indices.into_iter().enumerate(), self.data, &self.openings)
+            izip!(indices.into_iter().enumerate(), &self.data, &self.openings)
         {
             let k = k.try_into().unwrap();
-            let val = TFr::from_u64(value);
+            let val = TFr::from_u64(*value);
             let x = get_point(fft_settings, data_len, idx);
 
             check!(kzg_settings.check_proof_single(com, opening, x, &val)?);
 
             let partial_pow =
-                individual_hash(prelude, &self.schnorr, fisch_iter, k, value, opening);
+                individual_hash(prelude, &self.schnorr, fisch_iter, k, *value, opening);
             hash = bitxor(hash, partial_pow);
         }
 
@@ -210,8 +210,8 @@ impl<const M: usize> BaseProof<M> {
                 let openings: Vec<_> = openings.into_iter().copied().collect();
                 return Some(BaseProof {
                     schnorr,
-                    data: data.try_into().unwrap(),
-                    openings: openings.try_into().unwrap(), // [TG1::zero(); 8],
+                    data,
+                    openings,
                 });
             }
         }
@@ -260,7 +260,7 @@ mod tests {
         let prelude = [0; 8];
         let mvalue: usize = 16;
 
-        let proof = BaseProof::<M>::prove(
+        let proof = BaseProof::prove(
             fisch_iter,
             prelude,
             &openings,
@@ -310,7 +310,7 @@ mod tests {
 
         let nfisch = 2;
         let mvalue: usize = 16;
-        let proof = Proof::<M>::prove(&kzg_settings, sk, &data, nfisch, bit_difficulty, mvalue)
+        let proof = Proof::prove(&kzg_settings, sk, &data, nfisch, bit_difficulty, mvalue)
             .expect("KZG error")
             .expect("No proof found");
         assert_eq!(proof.base_proofs.len(), nfisch);
