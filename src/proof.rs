@@ -244,7 +244,7 @@ mod tests {
             .map(TFr::from_u64)
             .collect();
 
-        let secrets_len = 15;
+        let secrets_len = 16;
         let (s1, s2, s3) = generate_trusted_setup(secrets_len, [0; 32]);
         let fs = FsFFTSettings::new(4).unwrap();
         let kzg_settings: FsKZGSettings = FsKZGSettings::new(&s1, &s2, &s3, &fs, 7).unwrap();
@@ -295,7 +295,7 @@ mod tests {
         let data = [4; 128]; //, 5, 1, 5, 7];
         let bit_difficulty = 1;
 
-        let secrets_len = 15;
+        let secrets_len = 16;
         let (s1, s2, s3) = generate_trusted_setup(secrets_len, [0; 32]);
         let fs = FsFFTSettings::new(4).unwrap();
         let kzg_settings: FsKZGSettings = FsKZGSettings::new(&s1, &s2, &s3, &fs, 7).unwrap();
