@@ -24,7 +24,7 @@ pub(crate) fn prelude(pk: &PublicKey, com: &Commitment, a_i: impl Iterator<Item 
 
 pub(crate) fn derive_indices(i: usize, c: u32, num_indices: usize, data_len: usize) -> Vec<usize> {
     assert!(
-        data_len <= u16::MAX as usize,
+        data_len <= u16::MAX as usize + 1,
         "Data has more than {} blocks",
         u16::MAX
     );

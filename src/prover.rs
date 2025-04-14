@@ -39,7 +39,7 @@ fn main() -> anyhow::Result<()> {
     println!("Generating trusted setup...");
 
     // Data has 2^{scale-1} chunks of 32 bytes
-    let scale = 15;
+    let scale = 17;
     let secrets_len = 2_usize.pow(scale - 1);
     let (s1, s2, s3) = generate_trusted_setup(secrets_len, [0; 32]);
     let fs = FsFFTSettings::new(scale as usize).unwrap();
