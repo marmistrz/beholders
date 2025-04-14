@@ -189,6 +189,7 @@ impl BaseProof {
         difficulty: u32,
         mvalue: usize,
     ) -> Option<Self> {
+        assert_eq!(data.len(), openings.len());
         let maxc = 1u64 << (difficulty + 5);
         for c in 0..maxc {
             let c = TFr::from_u64(c);
