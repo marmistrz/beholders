@@ -7,7 +7,7 @@ use sha2::{
 
 use crate::{
     commitment::Commitment,
-    schnorr::{PublicKey, Schnorr},
+    schnorr::{self, PublicKey, Schnorr},
     types::{TFr, TG1},
 };
 
@@ -22,12 +22,7 @@ pub(crate) fn prelude(pk: &PublicKey, com: &Commitment, a_i: impl Iterator<Item 
     bytemuck::cast(hash)
 }
 
-pub(crate) fn derive_indices(
-    i: usize,
-    c: &impl Fr,
-    num_indices: usize,
-    data_len: usize,
-) -> Vec<usize> {
+pub(crate) fn derive_indices(i: usize, c: u32, num_indices: usize, data_len: usize) -> Vec<usize> {
     assert!(
         data_len <= u16::MAX as usize,
         "Data has more than {} blocks",
@@ -41,7 +36,7 @@ pub(crate) fn derive_indices(
     let mut state = [0u64; 8];
     let mut input = [0u8; 128];
     input[0..8].clone_from_slice(&i.to_le_bytes());
-    input[8..40].clone_from_slice(&c.to_bytes());
+    input[8..12].clone_from_slice(&c.to_le_bytes());
 
     let blocks: &GenericArray<_, U128> = GenericArray::from_slice(&input);
     compress512(&mut state, &[*blocks]);
@@ -79,15 +74,13 @@ pub(crate) fn individual_hash(
     let mut state: HashOutput = prelude;
     let mut input = [0u8; 128];
 
-    let Schnorr { c, z, .. } = schnorr;
-
     // input[0..8].clone_from_slice(&.to_le_bytes());
     input[0..48].clone_from_slice(&opening.to_bytes());
-    input[48..80].clone_from_slice(&c.to_bytes());
-    input[80..112].clone_from_slice(&z.to_bytes());
-    input[112..120].clone_from_slice(&val.to_bytes()[..8]);
-    input[120] = k;
-    input[121..123].clone_from_slice(&fisch_iter.to_le_bytes());
+    input[48..52].clone_from_slice(&schnorr.c.to_le_bytes());
+    input[52..84].clone_from_slice(&schnorr.z.to_bytes());
+    input[84..116].clone_from_slice(&val.to_bytes());
+    input[116] = k;
+    input[117..119].clone_from_slice(&fisch_iter.to_le_bytes());
 
     let blocks: &GenericArray<_, U128> = GenericArray::from_slice(&input); //[c.to_bytes(), pad].iter().flatten().into();
     compress512(&mut state, &[*blocks]);
@@ -100,49 +93,49 @@ pub(crate) fn pow_pass(hash_output: &HashOutput, difficulty: u32) -> bool {
     hash_output[0].trailing_zeros() >= difficulty
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use kzg::types::{fr::FsFr, g1::FsG1};
-//     use test_case::test_case;
+#[cfg(test)]
+mod tests {
+    use kzg::types::{fr::FsFr, g1::FsG1};
+    use test_case::test_case;
 
-//     use super::*;
+    use super::*;
 
-//     #[test_case(8; "m=8")]
-//     #[test_case(6; "m=6")]
-//     fn test_derive_indices(m: usize) {
-//         let i = 1;
-//         let c = FsFr::one();
-//         let data_len = 10;
-//         let indices = derive_indices(i, &c, m, data_len);
-//         assert_eq!(indices.len(), m);
-//         indices.iter().for_each(|&x| assert!(x < data_len));
-//     }
+    //     #[test_case(8; "m=8")]
+    //     #[test_case(6; "m=6")]
+    //     fn test_derive_indices(m: usize) {
+    //         let i = 1;
+    //         let c = FsFr::one();
+    //         let data_len = 10;
+    //         let indices = derive_indices(i, &c, m, data_len);
+    //         assert_eq!(indices.len(), m);
+    //         indices.iter().for_each(|&x| assert!(x < data_len));
+    //     }
 
-//     // #[test]
-//     // fn test_derive_indices2() {
-//     //     let i = 1;
-//     //     let c = FsFr::one();
-//     //     let m = 10;
-//     //     let indices = derive_indices(i, &c, m);
-//     //     assert_eq!(indices.len(), m);
-//     // }
+    //     // #[test]
+    //     // fn test_derive_indices2() {
+    //     //     let i = 1;
+    //     //     let c = FsFr::one();
+    //     //     let m = 10;
+    //     //     let indices = derive_indices(i, &c, m);
+    //     //     assert_eq!(indices.len(), m);
+    //     // }
 
-//     #[test]
-//     fn test_pow_pass() {
-//         let mut hash_output = [0u64; 8];
-//         assert!(pow_pass(&hash_output, 1));
-//         assert!(pow_pass(&hash_output, 64));
-//         hash_output[0] = (u8::MAX as u64) + 1;
-//         assert!(pow_pass(&hash_output, 8));
-//         assert!(!pow_pass(&hash_output, 9));
-//     }
+    //     #[test]
+    //     fn test_pow_pass() {
+    //         let mut hash_output = [0u64; 8];
+    //         assert!(pow_pass(&hash_output, 1));
+    //         assert!(pow_pass(&hash_output, 64));
+    //         hash_output[0] = (u8::MAX as u64) + 1;
+    //         assert!(pow_pass(&hash_output, 8));
+    //         assert!(!pow_pass(&hash_output, 9));
+    //     }
 
-//     #[test]
-//     fn test_invididual_hash() {
-//         let schnorr = Schnorr::prove(&Default::default(), &Default::default(), Default::default());
-//         let prelude = [0u64; 8];
-//         let fisch_iter = 0;
-//         let opening = FsG1::generator();
-//         individual_hash(prelude, &schnorr, fisch_iter, 0, 0, &opening);
-//     }
-// }
+    #[test]
+    fn test_invididual_hash() {
+        let schnorr = Schnorr::prove(&Default::default(), &Default::default(), Default::default());
+        let prelude = [0u64; 8];
+        let fisch_iter = 0;
+        let opening = FsG1::generator();
+        individual_hash(prelude, &schnorr, fisch_iter, 0, TFr::zero(), &opening);
+    }
+}

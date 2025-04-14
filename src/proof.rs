@@ -152,7 +152,7 @@ impl BaseProof {
         check!(self.schnorr.verify(pk));
 
         // Compute the indices as a Vec<usize>
-        let indices: Vec<usize> = derive_indices(fisch_iter, &self.schnorr.c, mvalue, data_len);
+        let indices: Vec<usize> = derive_indices(fisch_iter, self.schnorr.c, mvalue, data_len);
         // Ensure that we have the correct number of indices.
         assert_eq!(indices.len(), mvalue);
 
@@ -194,12 +194,11 @@ impl BaseProof {
         mvalue: usize,
     ) -> Option<Self> {
         assert_eq!(data.len(), openings.len());
-        let maxc = 1u64 << (difficulty + 5);
+        let maxc = 1u32 << (difficulty + 5);
         for c in 0..maxc {
-            let c = TFr::from_u64(c);
             let schnorr = Schnorr::prove(sk, r, c);
 
-            let indices = derive_indices(fisch_iter, &c, mvalue, data.len());
+            let indices = derive_indices(fisch_iter, c, mvalue, data.len());
             let indices: [usize; 16] = indices.try_into().expect("FIXME support m != 16");
             let data: Vec<_> = indices.iter().map(|&i| data[i]).collect();
             let openings: Vec<_> = indices.iter().map(|&i| &openings[i]).collect();
