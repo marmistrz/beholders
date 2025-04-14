@@ -7,7 +7,7 @@ use sha2::{
 
 use crate::{
     commitment::Commitment,
-    schnorr::{self, PublicKey, Schnorr},
+    schnorr::{PublicKey, Schnorr},
     types::{TFr, TG1},
 };
 
@@ -95,40 +95,31 @@ pub(crate) fn pow_pass(hash_output: &HashOutput, difficulty: u32) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use kzg::types::{fr::FsFr, g1::FsG1};
+    use kzg::types::g1::FsG1;
     use test_case::test_case;
 
     use super::*;
 
-    //     #[test_case(8; "m=8")]
-    //     #[test_case(6; "m=6")]
-    //     fn test_derive_indices(m: usize) {
-    //         let i = 1;
-    //         let c = FsFr::one();
-    //         let data_len = 10;
-    //         let indices = derive_indices(i, &c, m, data_len);
-    //         assert_eq!(indices.len(), m);
-    //         indices.iter().for_each(|&x| assert!(x < data_len));
-    //     }
+    #[test_case(8; "m=8")]
+    #[test_case(6; "m=6")]
+    fn test_derive_indices(m: usize) {
+        let i = 1;
+        let c = 1;
+        let data_len = 10;
+        let indices = derive_indices(i, c, m, data_len);
+        assert_eq!(indices.len(), m);
+        indices.iter().for_each(|&x| assert!(x < data_len));
+    }
 
-    //     // #[test]
-    //     // fn test_derive_indices2() {
-    //     //     let i = 1;
-    //     //     let c = FsFr::one();
-    //     //     let m = 10;
-    //     //     let indices = derive_indices(i, &c, m);
-    //     //     assert_eq!(indices.len(), m);
-    //     // }
-
-    //     #[test]
-    //     fn test_pow_pass() {
-    //         let mut hash_output = [0u64; 8];
-    //         assert!(pow_pass(&hash_output, 1));
-    //         assert!(pow_pass(&hash_output, 64));
-    //         hash_output[0] = (u8::MAX as u64) + 1;
-    //         assert!(pow_pass(&hash_output, 8));
-    //         assert!(!pow_pass(&hash_output, 9));
-    //     }
+    #[test]
+    fn test_pow_pass() {
+        let mut hash_output = [0u64; 8];
+        assert!(pow_pass(&hash_output, 1));
+        assert!(pow_pass(&hash_output, 64));
+        hash_output[0] = (u8::MAX as u64) + 1;
+        assert!(pow_pass(&hash_output, 8));
+        assert!(!pow_pass(&hash_output, 9));
+    }
 
     #[test]
     fn test_invididual_hash() {

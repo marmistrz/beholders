@@ -237,96 +237,92 @@ mod tests {
     use super::*;
     const M: usize = 16;
 
-    // #[test]
-    // fn test_base_proof() {
-    //     use std::time::Instant;
+    #[test]
+    fn test_base_proof() {
+        let data: Vec<TFr> = vec![4, 2137, 383, 4]
+            .into_iter()
+            .map(TFr::from_u64)
+            .collect();
 
-    //     // Start the timer.
-    //     let start = Instant::now();
-    //     //, 5, 1, 5, 7];
-    //     let data = [14, 2137, 383, 4];
+        let secrets_len = 15;
+        let (s1, s2, s3) = generate_trusted_setup(secrets_len, [0; 32]);
+        let fs = FsFFTSettings::new(4).unwrap();
+        let kzg_settings: FsKZGSettings = FsKZGSettings::new(&s1, &s2, &s3, &fs, 7).unwrap();
 
-    //     let secrets_len = 15;
-    //     let (s1, s2, s3) = generate_trusted_setup(secrets_len, [0; 32]);
-    //     let fs = FsFFTSettings::new(4).unwrap();
-    //     let kzg_settings: FsKZGSettings = FsKZGSettings::new(&s1, &s2, &s3, &fs, 7).unwrap();
+        let (_com, openings) = open_all_fk20(&kzg_settings, &data).expect("openings");
+        assert_eq!(openings.len(), data.len());
 
-    //     let (_com, openings) = open_all_fk20(&kzg_settings, &data).expect("openings");
-    //     assert_eq!(openings.len(), data.len());
+        let g = TG1::generator();
+        let r = FsFr::from_u64(1337);
+        let sk = SecretKey::from_u64(2137);
+        let pk = g.mul(&sk);
+        let byte_difficulty = 4;
 
-    //     let g = TG1::generator();
-    //     let r = FsFr::from_u64(1337);
-    //     let sk = SecretKey::from_u64(2137);
-    //     let pk = g.mul(&sk);
-    //     let byte_difficulty = 4;
+        let fisch_iter = 0;
+        let prelude = [0; 8];
+        let mvalue: usize = 16;
 
-    //     let fisch_iter = 0;
-    //     let prelude = [0; 8];
-    //     let mvalue: usize = 16;
+        let proof = BaseProof::prove(
+            fisch_iter,
+            prelude,
+            &openings,
+            &r,
+            &sk,
+            &data,
+            byte_difficulty,
+            mvalue,
+        )
+        .expect("No proof found");
 
-    //     let proof = BaseProof::prove(
-    //         fisch_iter,
-    //         prelude,
-    //         &openings,
-    //         &r,
-    //         &sk,
-    //         &data,
-    //         byte_difficulty,
-    //         mvalue,
-    //     )
-    //     .expect("No proof found");
+        let poly = interpolate(kzg_settings.get_fft_settings(), &data);
+        let com = kzg_settings.commit_to_poly(&poly).expect("commit");
+        assert!(proof
+            .verify(
+                fisch_iter,
+                prelude,
+                &pk,
+                &com,
+                data.len(),
+                &kzg_settings,
+                byte_difficulty,
+                mvalue
+            )
+            .expect("KZG error"));
+    }
 
-    //     let poly = interpolate(kzg_settings.get_fft_settings(), &data);
-    //     let com = kzg_settings.commit_to_poly(&poly).expect("commit");
-    //     assert!(proof
-    //         .verify(
-    //             fisch_iter,
-    //             prelude,
-    //             &pk,
-    //             &com,
-    //             data.len(),
-    //             &kzg_settings,
-    //             byte_difficulty,
-    //             mvalue
-    //         )
-    //         .expect("KZG error"));
-    //     // Stop the timer and print the elapsed time.
-    //     let duration = start.elapsed();
-    //     println!(
-    //         "Test execution time: {:?}, diff: {}, M: {}",
-    //         duration, byte_difficulty, M
-    //     );
-    // }
+    #[test]
+    fn test_mining_works() {
+        let data = [4; 128]; //, 5, 1, 5, 7];
+        let bit_difficulty = 1;
 
-    // #[test]
-    // fn test_mining_works() {
-    //     let data = [4, 2137, 383, 4]; //, 5, 1, 5, 7];
-    //     let bit_difficulty = 1;
+        let secrets_len = 15;
+        let (s1, s2, s3) = generate_trusted_setup(secrets_len, [0; 32]);
+        let fs = FsFFTSettings::new(4).unwrap();
+        let kzg_settings: FsKZGSettings = FsKZGSettings::new(&s1, &s2, &s3, &fs, 7).unwrap();
 
-    //     let secrets_len = 15;
-    //     let (s1, s2, s3) = generate_trusted_setup(secrets_len, [0; 32]);
-    //     let fs = FsFFTSettings::new(4).unwrap();
-    //     let kzg_settings: FsKZGSettings = FsKZGSettings::new(&s1, &s2, &s3, &fs, 7).unwrap();
+        let g = TG1::generator();
+        let sk = SecretKey::from_u64(2137);
+        let pk = g.mul(&sk);
 
-    //     let g = TG1::generator();
-    //     let sk = SecretKey::from_u64(2137);
-    //     let pk = g.mul(&sk);
+        let nfisch = 2;
+        let mvalue: usize = 16;
+        let proof = Proof::prove(&kzg_settings, sk, &data, nfisch, bit_difficulty, mvalue)
+            .expect("KZG error")
+            .expect("No proof found");
+        assert_eq!(proof.base_proofs.len(), nfisch);
+        for base_proof in &proof.base_proofs {
+            assert_eq!(base_proof.data.len(), M);
+            assert!(base_proof.schnorr.verify(&pk));
+        }
 
-    //     let nfisch = 2;
-    //     let mvalue: usize = 16;
-    //     let proof = Proof::prove(&kzg_settings, sk, &data, nfisch, bit_difficulty, mvalue)
-    //         .expect("KZG error")
-    //         .expect("No proof found");
-    //     assert_eq!(proof.base_proofs.len(), nfisch);
-    //     for base_proof in &proof.base_proofs {
-    //         assert_eq!(base_proof.data.len(), M);
-    //         assert!(base_proof.schnorr.verify(&pk));
-    //     }
-
-    //     let poly = interpolate(kzg_settings.get_fft_settings(), &data);
-    //     let com = kzg_settings.commit_to_poly(&poly).expect("commit");
-    //     assert!(proof
-    //         .verify(&pk, &com, data.len(), &kzg_settings, bit_difficulty, mvalue)
-    //         .expect("KZG error"));
-    // }
+        let data: Vec<_> = data
+            .chunks_exact(32)
+            .map(|x| TFr::from_bytes_unchecked(x).unwrap())
+            .collect();
+        let poly = interpolate(kzg_settings.get_fft_settings(), &data);
+        let com = kzg_settings.commit_to_poly(&poly).expect("commit");
+        assert!(proof
+            .verify(&pk, &com, data.len(), &kzg_settings, bit_difficulty, mvalue)
+            .expect("KZG error"));
+    }
 }

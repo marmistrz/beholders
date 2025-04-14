@@ -35,15 +35,15 @@ mod tests {
     use super::*;
     use kzg::types::fr::FsFr;
 
-    // #[test]
-    // fn test_schnorr() {
-    //     let g = TG1::generator();
+    #[test]
+    fn test_schnorr() {
+        let g = TG1::generator();
 
-    //     let r = FsFr::from_u64(1337);
-    //     let sk = FsFr::from_u64(42);
-    //     let pk = g.mul(&sk);
-    //     let c = FsFr::from_u64(2137);
-    //     let proof = Schnorr::prove(&sk, &r, c);
-    //     assert!(proof.verify(&pk));
-    // }
+        let r = FsFr::from_u64(1337);
+        let sk = FsFr::from_u64(42);
+        let pk = g.mul(&sk);
+        let c = 2137;
+        let proof = Schnorr::prove(&sk, &r, c);
+        assert!(proof.verify(&pk));
+    }
 }

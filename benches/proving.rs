@@ -9,59 +9,62 @@ const M: usize = 8;
 const TRUSTED_SETUP_FILE: &str = "trusted_setup.txt";
 
 pub fn criterion_benchmark(c: &mut Criterion) {
-    //     let data = (0..1024).collect::<Vec<u64>>();
+    let data = vec![7; 1024];
+    let datafr: Vec<_> = data
+        .chunks_exact(32)
+        .map(|x| FsFr::from_bytes_unchecked(x).unwrap())
+        .collect();
+    let kzg_settings =
+        load_trusted_setup_filename_rust(TRUSTED_SETUP_FILE).expect("loading trusted setup");
 
-    //     let kzg_settings =
-    //         load_trusted_setup_filename_rust(TRUSTED_SETUP_FILE).expect("loading trusted setup");
+    // Benchmark the precomputation (opening all data for the KZG commitment)
+    c.bench_function("open_all", |b| {
+        b.iter(|| open_all_fk20(&kzg_settings, black_box(&datafr)).expect("KZG error"))
+        // b.iter(|| open_all::<Backend>(&kzg_settings, black_box(&data)).expect("KZG error"))
+    });
 
-    //     // Benchmark the precomputation (opening all data for the KZG commitment)
-    //     c.bench_function("open_all", |b| {
-    //         b.iter(|| open_all_fk20(&kzg_settings, black_box(&data)).expect("KZG error"))
-    //         // b.iter(|| open_all::<Backend>(&kzg_settings, black_box(&data)).expect("KZG error"))
-    //     });
+    let sk = FsFr::from_u64(2137);
+    let r = FsFr::from_u64(1337);
+    let bit_difficulty = 14;
+    let (_com, openings) = open_all_fk20(&kzg_settings, &datafr).expect("openings");
+    assert_eq!(openings.len(), data.len());
 
-    //     let sk = FsFr::from_u64(2137);
-    //     let r = FsFr::from_u64(1337);
-    //     let bit_difficulty = 14;
-    //     let (_com, openings) = open_all_fk20(&kzg_settings, &data).expect("openings");
-    //     assert_eq!(openings.len(), data.len());
+    let fisch_iter = 0;
+    let prelude = [0; 8];
 
-    //     let fisch_iter = 0;
-    //     let prelude = [0; 8];
+    // Benchmark the Fischlin Mining
+    c.bench_function("base_mining", |b| {
+        b.iter(|| {
+            BaseProof::prove(
+                black_box(fisch_iter),
+                black_box(prelude),
+                black_box(&openings),
+                black_box(&r),
+                black_box(&sk),
+                black_box(&datafr),
+                bit_difficulty,
+                M,
+            )
+            .expect("No proof found");
+        })
+    });
 
-    //     // Benchmark the Fischlin Mining
-    //     c.bench_function("base_mining", |b| {
-    //         b.iter(|| {
-    //             BaseProof::prove(
-    //                 black_box(fisch_iter),
-    //                 black_box(prelude),
-    //                 black_box(&openings),
-    //                 black_box(&r),
-    //                 black_box(&sk),
-    //                 black_box(&data),
-    //                 bit_difficulty,
-    //                 M,
-    //             )
-    //             .expect("No proof found");
-    //         })
-    //     });
-
-    //     let nfisch = 4;
-    //     let bit_difficulty = 14;
-    //     c.bench_function("full_mining", |b| {
-    //         b.iter(|| {
-    //             Proof::prove(
-    //                 &kzg_settings,
-    //                 black_box(sk),
-    //                 black_box(&data),
-    //                 black_box(nfisch),
-    //                 bit_difficulty,
-    //                 M,
-    //             )
-    //             .expect("KZG error")
-    //             .expect("No proof found");
-    //         })
-    //     });
+    let nfisch = 4;
+    let bit_difficulty = 14;
+    c.bench_function("full_mining", |b| {
+        b.iter(|| {
+            Proof::prove(
+                &kzg_settings,
+                black_box(sk),
+                black_box(&data),
+                black_box(nfisch),
+                bit_difficulty,
+                M,
+            )
+            .expect("KZG error")
+            .expect("No proof found");
+        })
+    });
 }
 
 criterion_group! {
