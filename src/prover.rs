@@ -37,9 +37,12 @@ fn main() -> anyhow::Result<()> {
 
     let start: Instant = Instant::now();
     println!("Loading trusted setup...");
-    let secrets_len = 32768;
+
+    // Data has 2^{scale-1} chunks of 32 bytes
+    let scale = 18;
+    let secrets_len = 2_usize.pow(scale - 1);
     let (s1, s2, s3) = generate_trusted_setup(secrets_len, [0; 32]);
-    let fs = FsFFTSettings::new(16).unwrap();
+    let fs = FsFFTSettings::new(scale as usize).unwrap();
     let kzg_settings =
         FsKZGSettings::new(&s1, &s2, &s3, &fs, kzg_traits::eth::FIELD_ELEMENTS_PER_CELL).unwrap();
     // let kzg_settings =
