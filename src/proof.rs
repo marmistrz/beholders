@@ -14,7 +14,7 @@ use crate::util::bitxor;
 #[derive(Debug)]
 pub struct BaseProof {
     schnorr: Schnorr, // (a, c, z)
-    data: Vec<u64>,
+    data: Vec<TFr>,
     openings: Vec<Opening>,
 }
 
@@ -89,7 +89,7 @@ impl Proof {
     pub fn prove(
         kzg_settings: &TKZGSettings,
         sk: SecretKey,
-        data: &[u64],
+        data: &[u8],
         nfisch: usize,
         difficulty: u32,
         mvalue: usize,
@@ -99,9 +99,14 @@ impl Proof {
             "Data length must be a power of two"
         );
 
+        let data: Vec<_> = data
+            .chunks_exact(32)
+            .map(|x| TFr::from_bytes_unchecked(x).unwrap())
+            .collect();
+
         let generator = TG1::generator();
-        // Compute the openings
-        let (com, openings) = open_all_fk20(kzg_settings, data)?;
+        // Compute the openings-
+        let (com, openings) = open_all_fk20(kzg_settings, &data)?;
 
         // Compute the Schnorr commitment
         let r_i: Vec<_> = (0..nfisch).map(|_| TFr::rand()).collect();
@@ -119,7 +124,7 @@ impl Proof {
                     &openings,
                     &r_i[fisch_iter],
                     &sk,
-                    data,
+                    &data,
                     difficulty,
                     mvalue,
                 )
@@ -147,7 +152,7 @@ impl BaseProof {
         check!(self.schnorr.verify(pk));
 
         // Compute the indices as a Vec<usize>
-        let indices: Vec<usize> = derive_indices(fisch_iter, &self.schnorr.c, mvalue, data_len);
+        let indices: Vec<usize> = derive_indices(fisch_iter, self.schnorr.c, mvalue, data_len);
         // Ensure that we have the correct number of indices.
         assert_eq!(indices.len(), mvalue);
 
@@ -163,10 +168,9 @@ impl BaseProof {
             izip!(indices.into_iter().enumerate(), &self.data, &self.openings)
         {
             let k = k.try_into().unwrap();
-            let val = TFr::from_u64(*value);
             let x = get_point(fft_settings, data_len, idx);
 
-            check!(kzg_settings.check_proof_single(com, opening, x, &val)?);
+            check!(kzg_settings.check_proof_single(com, opening, x, value)?);
 
             let partial_pow =
                 individual_hash(prelude, &self.schnorr, fisch_iter, k, *value, opening);
@@ -185,17 +189,16 @@ impl BaseProof {
         openings: &[Opening],
         r: &TFr,
         sk: &SecretKey,
-        data: &[u64],
+        data: &[TFr],
         difficulty: u32,
         mvalue: usize,
     ) -> Option<Self> {
         assert_eq!(data.len(), openings.len());
-        let maxc = 1u64 << (difficulty + 5);
+        let maxc = 1u32 << (difficulty + 5);
         for c in 0..maxc {
-            let c = TFr::from_u64(c);
             let schnorr = Schnorr::prove(sk, r, c);
 
-            let indices = derive_indices(fisch_iter, &c, mvalue, data.len());
+            let indices = derive_indices(fisch_iter, c, mvalue, data.len());
             let indices: [usize; 16] = indices.try_into().expect("FIXME support m != 16");
             let data: Vec<_> = indices.iter().map(|&i| data[i]).collect();
             let openings: Vec<_> = indices.iter().map(|&i| &openings[i]).collect();
@@ -236,12 +239,10 @@ mod tests {
 
     #[test]
     fn test_base_proof() {
-        use std::time::Instant;
-
-        // Start the timer.
-        let start = Instant::now();
-        //, 5, 1, 5, 7];
-        let data = [14, 2137, 383, 4];
+        let data: Vec<TFr> = vec![4, 2137, 383, 4]
+            .into_iter()
+            .map(TFr::from_u64)
+            .collect();
 
         let secrets_len = 15;
         let (s1, s2, s3) = generate_trusted_setup(secrets_len, [0; 32]);
@@ -287,17 +288,11 @@ mod tests {
                 mvalue
             )
             .expect("KZG error"));
-        // Stop the timer and print the elapsed time.
-        let duration = start.elapsed();
-        println!(
-            "Test execution time: {:?}, diff: {}, M: {}",
-            duration, byte_difficulty, M
-        );
     }
 
     #[test]
     fn test_mining_works() {
-        let data = [4, 2137, 383, 4]; //, 5, 1, 5, 7];
+        let data = [4; 128]; //, 5, 1, 5, 7];
         let bit_difficulty = 1;
 
         let secrets_len = 15;
@@ -320,6 +315,10 @@ mod tests {
             assert!(base_proof.schnorr.verify(&pk));
         }
 
+        let data: Vec<_> = data
+            .chunks_exact(32)
+            .map(|x| TFr::from_bytes_unchecked(x).unwrap())
+            .collect();
         let poly = interpolate(kzg_settings.get_fft_settings(), &data);
         let com = kzg_settings.commit_to_poly(&poly).expect("commit");
         assert!(proof

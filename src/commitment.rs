@@ -1,20 +1,26 @@
+use std::time::Instant;
+
 use kzg_traits::{FFTFr, FFTSettings, FK20SingleSettings, Fr, KZGSettings, Poly};
 
-use crate::types::{TFK20SingleSettings, TKZGSettings, TPoly, TG1};
+use crate::types::{TFK20SingleSettings, TFr, TKZGSettings, TPoly, TG1};
 
 /// KZG opening
 pub(crate) type Opening = TG1;
 /// Polynomial Commitment (KZG) value
 pub(crate) type Commitment = TG1;
 
-pub(crate) fn interpolate<TFr, TFFT, TPoly>(settings: &TFFT, data: &[u64]) -> TPoly
+pub(crate) fn interpolate<TFr, TFFT, TPoly>(settings: &TFFT, data: &[TFr]) -> TPoly
 where
     TFr: Fr,
     TFFT: FFTSettings<TFr> + FFTFr<TFr>,
     TPoly: Poly<TFr>,
 {
-    let data = data.iter().map(|x| TFr::from_u64(*x)).collect::<Vec<_>>();
-    let coeffs = settings.fft_fr(data.as_slice(), true).unwrap();
+    // let data: Vec<_> = data
+    //     .chunks_exact(32)
+    //     .map(|x| TFr::from_bytes(x).unwrap())
+    //     .collect();
+    // let data = data.iter().map(|x| TFr::from_u64(*x)).collect::<Vec<_>>();
+    let coeffs = settings.fft_fr(data, true).unwrap();
     TPoly::from_coeffs(coeffs.as_slice())
 }
 
@@ -30,8 +36,10 @@ pub(crate) fn get_point<TFr: Fr>(
 
 pub fn open_all_fk20(
     kzg_settings: &TKZGSettings,
-    data: &[u64],
+    data: &[TFr],
 ) -> Result<(Commitment, Vec<Opening>), String> {
+    let start = Instant::now();
+
     let fft_settings = kzg_settings.get_fft_settings();
     let fk20_settings = TFK20SingleSettings::new(kzg_settings, 2 * data.len())?;
     let poly: TPoly = interpolate(fft_settings, data);
@@ -43,6 +51,9 @@ pub fn open_all_fk20(
         .filter(|(i, _)| i % 2 == 0)
         .map(|(_, x)| x)
         .collect();
+
+    let duration = start.elapsed();
+    println!("FK20 time: {:?}", duration);
     Ok((com, openings))
 }
 
@@ -52,12 +63,12 @@ mod tests {
 
     use super::*;
     use kzg::{
-        types::{fft_settings::FsFFTSettings, fr::FsFr, kzg_settings::FsKZGSettings, poly::FsPoly},
+        types::{fft_settings::FsFFTSettings, kzg_settings::FsKZGSettings, poly::FsPoly},
         utils::generate_trusted_setup,
     };
     use kzg_traits::{FFTSettings, Fr, KZGSettings, Poly};
 
-    fn open_all(kzg_settings: &TKZGSettings, data: &[u64]) -> Result<Vec<Opening>, String> {
+    fn open_all(kzg_settings: &TKZGSettings, data: &[TFr]) -> Result<Vec<Opening>, String> {
         let fft_settings = kzg_settings.get_fft_settings();
         let poly: TPoly = interpolate(fft_settings, data);
         data.iter()
@@ -71,41 +82,30 @@ mod tests {
 
     #[test]
     fn test_interpolate() {
-        let data = [4, 2137, 383, 4]; //, 5, 1, 5, 7];
+        let data: Vec<TFr> = vec![4, 2137, 383, 4]
+            .into_iter()
+            .map(TFr::from_u64)
+            .collect();
         let fft_settings = TFFTSettings::new(15).unwrap();
         let poly: FsPoly = interpolate(&fft_settings, &data);
 
         for (i, orig) in data.iter().enumerate() {
             let root = get_point(&fft_settings, data.len(), i);
             let val = poly.eval(root);
-            assert_eq!(
-                val,
-                FsFr::from_u64(*orig),
-                "root={:?} orig={} i={}",
-                root,
-                orig,
-                i
-            );
+            assert_eq!(val, *orig, "i={}", i);
         }
     }
 
     #[test]
     fn test_interpolate_long() {
-        let data = [0; 64]; //, 5, 1, 5, 7];
+        let data: Vec<TFr> = vec![8; 128].into_iter().map(TFr::from_u64).collect();
         let fft_settings = TFFTSettings::new(15).unwrap();
         let poly: FsPoly = interpolate(&fft_settings, &data);
 
         for (i, orig) in data.iter().enumerate() {
             let root = get_point(&fft_settings, data.len(), i);
             let val = poly.eval(root);
-            assert_eq!(
-                val,
-                FsFr::from_u64(*orig),
-                "root={:?} orig={} i={}",
-                root,
-                orig,
-                i
-            );
+            assert_eq!(val, *orig, "i={}", i);
         }
     }
 
@@ -120,9 +120,12 @@ mod tests {
 
     #[test]
     fn test_prove() {
-        let data = [4, 2137, 383, 4]; //, 5, 1, 5, 7];
+        let data: Vec<TFr> = vec![4, 2137, 383, 4]
+            .into_iter()
+            .map(TFr::from_u64)
+            .collect();
 
-        let secrets_len = 15;
+        let secrets_len = 16;
         let (s1, s2, s3) = generate_trusted_setup(secrets_len, [0; 32]);
         let fs = FsFFTSettings::new(4).unwrap();
         let kzg_settings: FsKZGSettings = FsKZGSettings::new(&s1, &s2, &s3, &fs, 7).unwrap();
@@ -133,21 +136,23 @@ mod tests {
         let com = kzg_settings.commit_to_poly(&poly).expect("commit");
 
         for (i, val) in data.iter().enumerate() {
-            let value = FsFr::from_u64(*val);
             let x = get_point(fft_settings, data.len(), i);
 
-            assert_eq!(poly.eval(x), value, "value");
+            assert_eq!(poly.eval(x), *val, "value");
             let proof = kzg_settings.compute_proof_single(&poly, x).expect("prove");
             let res = kzg_settings
-                .check_proof_single(&com, &proof, x, &value)
+                .check_proof_single(&com, &proof, x, val)
                 .expect("verify");
-            assert!(res, "Proof did not verify for i = {}, value = {}", i, val);
+            assert!(res, "Proof did not verify for i={i}");
         }
     }
 
     #[test]
     fn test_open_all() {
-        let data: [u64; 4] = [4, 2137, 383, 4]; //, 5, 1, 5, 7];
+        let data: Vec<TFr> = vec![4, 2137, 383, 4]
+            .into_iter()
+            .map(TFr::from_u64)
+            .collect();
 
         let secrets_len = 15;
         let (s1, s2, s3) = generate_trusted_setup(secrets_len, [0; 32]);
@@ -161,14 +166,13 @@ mod tests {
         let com = kzg_settings.commit_to_poly(&poly).expect("commit");
 
         for ((i, val), proof) in data.iter().enumerate().zip(openings.iter()) {
-            let value = FsFr::from_u64(*val);
             let x = get_point(fft_settings, data.len(), i);
 
-            assert_eq!(poly.eval(x), value, "value");
+            assert_eq!(poly.eval(x), *val, "value");
             let res = kzg_settings
-                .check_proof_single(&com, proof, x, &value)
+                .check_proof_single(&com, proof, x, val)
                 .expect("verify");
-            assert!(res, "Proof did not verify for i = {}, value = {}", i, val);
+            assert!(res, "Proof did not verify for i = {}", i);
         }
     }
 
@@ -183,7 +187,10 @@ mod tests {
         let fk = TFK20SingleSettings::new(&ks, 2 * poly_len).unwrap();
 
         // Commit to the polynomial
-        let data: [u64; 4] = [4, 2137, 383, 4]; //, 5, 1, 5, 7];
+        let data: Vec<TFr> = vec![4, 2137, 383, 4]
+            .into_iter()
+            .map(TFr::from_u64)
+            .collect();
         let p: FsPoly = interpolate(fs, &data);
         assert_eq!(p.coeffs.len(), poly_len);
 
@@ -233,7 +240,10 @@ mod tests {
         //     .expect("loading trusted setup");
 
         // Commit to the polynomial
-        let data: [u64; 4] = [4, 2137, 383, 4]; //, 5, 1, 5, 7];
+        let data: Vec<TFr> = vec![4, 2137, 383, 4]
+            .into_iter()
+            .map(TFr::from_u64)
+            .collect();
 
         let (_com, all_proofs) = open_all_fk20(&ks, &data).unwrap();
         let direct = open_all(&ks, &data).unwrap();
@@ -242,8 +252,10 @@ mod tests {
 
     #[test]
     fn test_prove_trusted_setup() {
-        let data = [4, 2137, 383, 4]; //, 5, 1, 5, 7];
-                                      // let mut data = ;
+        let data: Vec<TFr> = vec![4, 2137, 383, 4]
+            .into_iter()
+            .map(TFr::from_u64)
+            .collect();
 
         const TRUSTED_SETUP_FILE: &str = "trusted_setup.txt";
         let kzg_settings = kzg::eip_4844::load_trusted_setup_filename_rust(TRUSTED_SETUP_FILE)
@@ -254,15 +266,14 @@ mod tests {
         let com = kzg_settings.commit_to_poly(&poly).expect("commit");
 
         for (i, val) in data.iter().enumerate() {
-            let value = FsFr::from_u64(*val);
             let x = get_point(fft_settings, data.len(), i);
 
-            assert_eq!(poly.eval(x), value, "value");
+            assert_eq!(poly.eval(x), *val, "value");
             let proof = kzg_settings.compute_proof_single(&poly, x).expect("prove");
             let res = kzg_settings
-                .check_proof_single(&com, &proof, x, &value)
+                .check_proof_single(&com, &proof, x, val)
                 .expect("verify");
-            assert!(res, "Proof did not verify for i = {}, value = {}", i, val);
+            assert!(res, "Proof did not verify for i = {}", i);
         }
     }
 }

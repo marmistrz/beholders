@@ -9,20 +9,23 @@ pub(crate) type SecretKey = TFr;
 #[derive(Debug)]
 pub(crate) struct Schnorr {
     pub(crate) a: TG1,
-    pub(crate) c: TFr,
+    pub(crate) c: u32,
     pub(crate) z: TFr,
 }
 
 impl Schnorr {
     pub fn verify(&self, pk: &PublicKey) -> bool {
         let g = TG1::generator();
-        pk.mul(&self.c).add(&self.a) == g.mul(&self.z)
+        let c = TFr::from_u64(self.c.into());
+        pk.mul(&c).add(&self.a) == g.mul(&self.z)
     }
 
-    pub fn prove(sk: &TFr, r: &TFr, c: TFr) -> Self {
+    pub fn prove(sk: &TFr, r: &TFr, c: u32) -> Self {
+        let cfr = TFr::from_u64(c.into());
+
         let g = TG1::generator();
         let a = g.mul(r);
-        let z = r.add(&c.mul(sk));
+        let z = r.add(&cfr.mul(sk));
         Self { a, c, z }
     }
 }
@@ -39,7 +42,7 @@ mod tests {
         let r = FsFr::from_u64(1337);
         let sk = FsFr::from_u64(42);
         let pk = g.mul(&sk);
-        let c = FsFr::from_u64(2137);
+        let c = 2137;
         let proof = Schnorr::prove(&sk, &r, c);
         assert!(proof.verify(&pk));
     }
