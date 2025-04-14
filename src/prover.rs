@@ -25,6 +25,7 @@ fn main() -> anyhow::Result<()> {
     let data: &[u64] = bytemuck::try_cast_slice(&data).unwrap();
     println!("Num chunks: {}", data.len());
     let sk = FsFr::from_u64(2137);
+    let mvalue = 16;
 
     let start: Instant = Instant::now();
     println!("Loading trusted setup...");
@@ -36,7 +37,7 @@ fn main() -> anyhow::Result<()> {
     println!("Proving...");
     let start: Instant = Instant::now();
 
-    let _proof = Proof::<8>::prove(&kzg_settings, sk, data, NFISCH, BIT_DIFFICULTY)
+    let _proof = Proof::<16>::prove(&kzg_settings, sk, data, NFISCH, BIT_DIFFICULTY, mvalue)
         .map_err(anyhow::Error::msg)
         .context("KZG error")?
         .context("Could not find solve the proof-of-work in the beholder signature")?;

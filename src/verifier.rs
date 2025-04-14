@@ -2,6 +2,7 @@ use beholders::Proof;
 
 const N_INDICES: usize = 8;
 const DIFFICULTY: u32 = 16;
+const MVALUE: usize = 16;
 
 fn main() {
     let proof = Proof::<N_INDICES> {
@@ -14,6 +15,7 @@ fn main() {
             20,
             &Default::default(),
             DIFFICULTY,
+            MVALUE,
         )
         .unwrap());
 }

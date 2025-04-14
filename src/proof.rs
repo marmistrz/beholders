@@ -26,7 +26,6 @@ pub struct Proof<const M: usize> {
 
 impl<const M: usize> Proof<M> {
     fn prelude(&self, pk: &PublicKey, com: &Commitment) -> Prelude {
-        // FIXME: we should hash more than just the a_i's
         let a_i = self.base_proofs.iter().map(|x| x.schnorr.a);
         prelude(pk, com, a_i)
     }
@@ -51,10 +50,20 @@ impl<const M: usize> Proof<M> {
         data_len: usize,
         kzg_settings: &TKZGSettings,
         difficulty: u32,
+        mvalue: usize,
     ) -> Result<bool, String> {
         let prelude = self.prelude(pk, com);
         for (i, base_proof) in self.base_proofs.iter().enumerate() {
-            if !base_proof.verify(i, prelude, pk, com, data_len, kzg_settings, difficulty)? {
+            if !base_proof.verify(
+                i,
+                prelude,
+                pk,
+                com,
+                data_len,
+                kzg_settings,
+                difficulty,
+                mvalue,
+            )? {
                 println!("Failed at base proof {}", i);
                 return Ok(false);
             }
@@ -83,6 +92,7 @@ impl<const M: usize> Proof<M> {
         data: &[u64],
         nfisch: usize,
         difficulty: u32,
+        mvalue: usize,
     ) -> Result<Option<Self>, String> {
         assert!(
             data.len().is_power_of_two(),
@@ -91,7 +101,6 @@ impl<const M: usize> Proof<M> {
 
         let generator = TG1::generator();
         // Compute the openings
-        // TODO: this interally computes an FFT, which should be avoided
         let (com, openings) = open_all_fk20(kzg_settings, data)?;
 
         // Compute the Schnorr commitment
@@ -112,6 +121,7 @@ impl<const M: usize> Proof<M> {
                     &sk,
                     data,
                     difficulty,
+                    mvalue,
                 )
             })
             .collect();
@@ -129,15 +139,22 @@ impl<const M: usize> BaseProof<M> {
         data_len: usize,
         kzg_settings: &TKZGSettings,
         difficulty: u32,
+        mvalue: usize,
     ) -> Result<bool, String> {
         let fft_settings = kzg_settings.get_fft_settings();
 
         println!("Checking Schnorr");
         check!(self.schnorr.verify(pk));
 
+        // Compute the indices as a Vec<usize>
+        let indices: Vec<usize> = derive_indices(fisch_iter, &self.schnorr.c, mvalue, data_len);
+        // Ensure that we have the correct number of indices.
+        if indices.len() != mvalue {
+            return Err("invalid num_indices".to_string());
+        }
         // Compute the indices
-        let indices = derive_indices(fisch_iter, &self.schnorr.c, M, data_len);
-        let indices: [usize; M] = indices.try_into().expect("invalid num_indices");
+        //let indices = derive_indices(fisch_iter, &self.schnorr.c, mvalue, data_len);
+        //let indices: [usize; mvalue] = indices.try_into().expect("invalid num_indices");
 
         let mut hash = HashOutput::default();
 
@@ -170,14 +187,15 @@ impl<const M: usize> BaseProof<M> {
         sk: &SecretKey,
         data: &[u64],
         difficulty: u32,
+        mvalue: usize,
     ) -> Option<Self> {
         let maxc = 1u64 << (difficulty + 5);
         for c in 0..maxc {
             let c = TFr::from_u64(c);
             let schnorr = Schnorr::prove(sk, r, c);
 
-            let indices = derive_indices(fisch_iter, &c, M, data.len());
-            let indices: [usize; 8] = indices.try_into().expect("FIXME support m != 8");
+            let indices = derive_indices(fisch_iter, &c, mvalue, data.len());
+            let indices: [usize; 16] = indices.try_into().expect("FIXME support m != 16");
             let data: Vec<_> = indices.iter().map(|&i| data[i]).collect();
             let openings: Vec<_> = indices.iter().map(|&i| &openings[i]).collect();
 
@@ -213,12 +231,16 @@ mod tests {
     use crate::commitment::interpolate;
 
     use super::*;
-    const M: usize = 8;
+    const M: usize = 16;
 
     #[test]
     fn test_base_proof() {
+        use std::time::Instant;
+
+        // Start the timer.
+        let start = Instant::now();
         //, 5, 1, 5, 7];
-        let data = [4, 2137, 383, 4];
+        let data = [14, 2137, 383, 4];
 
         let secrets_len = 15;
         let (s1, s2, s3) = generate_trusted_setup(secrets_len, [0; 32]);
@@ -232,10 +254,11 @@ mod tests {
         let r = FsFr::from_u64(1337);
         let sk = SecretKey::from_u64(2137);
         let pk = g.mul(&sk);
-        let byte_difficulty = 1;
+        let byte_difficulty = 4;
 
         let fisch_iter = 0;
         let prelude = [0; 8];
+        let mvalue: usize = 16;
 
         let proof = BaseProof::<M>::prove(
             fisch_iter,
@@ -245,6 +268,7 @@ mod tests {
             &sk,
             &data,
             byte_difficulty,
+            mvalue,
         )
         .expect("No proof found");
 
@@ -258,9 +282,16 @@ mod tests {
                 &com,
                 data.len(),
                 &kzg_settings,
-                byte_difficulty
+                byte_difficulty,
+                mvalue
             )
             .expect("KZG error"));
+        // Stop the timer and print the elapsed time.
+        let duration = start.elapsed();
+        println!(
+            "Test execution time: {:?}, diff: {}, M: {}",
+            duration, byte_difficulty, M
+        );
     }
 
     #[test]
@@ -278,7 +309,8 @@ mod tests {
         let pk = g.mul(&sk);
 
         let nfisch = 2;
-        let proof = Proof::<M>::prove(&kzg_settings, sk, &data, nfisch, bit_difficulty)
+        let mvalue: usize = 16;
+        let proof = Proof::<M>::prove(&kzg_settings, sk, &data, nfisch, bit_difficulty, mvalue)
             .expect("KZG error")
             .expect("No proof found");
         assert_eq!(proof.base_proofs.len(), nfisch);
@@ -290,7 +322,7 @@ mod tests {
         let poly = interpolate(kzg_settings.get_fft_settings(), &data);
         let com = kzg_settings.commit_to_poly(&poly).expect("commit");
         assert!(proof
-            .verify(&pk, &com, data.len(), &kzg_settings, bit_difficulty)
+            .verify(&pk, &com, data.len(), &kzg_settings, bit_difficulty, mvalue)
             .expect("KZG error"));
     }
 }
