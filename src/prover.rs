@@ -4,19 +4,19 @@ use anyhow::Context;
 use beholders::Proof;
 use clap::Parser;
 use kzg::{
-    eip_4844::load_trusted_setup_filename_rust,
+    eip_4844::load_trusted_setup_filename_rust, // TRUSTED SETUP
     types::{
         fft_settings::FsFFTSettings,
         fr::FsFr,
-        kzg_settings::{self, FsKZGSettings},
+        kzg_settings::{self, FsKZGSettings}, // TRUSTED SETUP
     },
     utils::generate_trusted_setup,
 };
 use kzg_traits::{FFTSettings, Fr, KZGSettings};
 
-const TRUSTED_SETUP_FILE: &str = "trusted_setup.txt";
+const TRUSTED_SETUP_FILE: &str = "trusted_setup.txt"; // TRUSTED SETUP
 
-const BIT_DIFFICULTY: u32 = 14;
+const BIT_DIFFICULTY: u32 = 15;
 const NFISCH: usize = 10;
 
 #[derive(Parser)]
@@ -29,11 +29,16 @@ struct Cli {
 fn main() -> anyhow::Result<()> {
     let args = Cli::parse();
 
-    let data = fs::read(&args.data).context(format!("Unable to read file: {:?}", args.data))?;
+    let rawdata = fs::read(&args.data).context(format!("Unable to read file: {:?}", args.data))?;
+    let data = &rawdata[..rawdata.len() / 1];
     // let data: &[u64] = bytemuck::try_cast_slice(&data).unwrap();
     println!("Num chunks: {}", data.len() / 32);
     let sk = FsFr::from_u64(2137);
     let mvalue = 16;
+    println!(
+        "Parameters: nfish: {}, d: {}, m: {}",
+        NFISCH, BIT_DIFFICULTY, mvalue
+    );
 
     let start: Instant = Instant::now();
     println!("Generating trusted setup...");
