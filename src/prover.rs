@@ -66,7 +66,7 @@ fn main() -> anyhow::Result<()> {
     let secrets_exp = chunks.ilog2();
     let scale = secrets_exp + 1;
     println!("Generating trusted setup, 2^{secrets_exp} secrets, FFT scale={scale}...");
-    let secrets_len = 2_usize.pow(secrets_exp);
+    let secrets_len = chunks;
     let (s1, s2, s3) = generate_trusted_setup(secrets_len, [0; 32]);
     let fs = FsFFTSettings::new(scale as usize).unwrap();
     let kzg_settings =
