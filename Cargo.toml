@@ -13,20 +13,24 @@ path = "src/verifier.rs"
 
 
 [dependencies]
-kzg = { git = "https://github.com/grandinetech/rust-kzg.git", package = "rust-kzg-blst", features = [
+kzg = { git = "https://github.com/marmistrz/rust-kzg.git", branch = "serialize", package = "rust-kzg-blst", features = [
     "parallel",
+    "serde",
 ] }
 anyhow = "1.0.97"
 bytemuck = "1.21.0"
 clap = { version = "4.5.35", features = ["derive"] }
 itertools = "0.14.0"
 
-kzg_traits = { git = "https://github.com/grandinetech/rust-kzg.git", package = "kzg", features = [
+kzg_traits = { git = "https://github.com/marmistrz/rust-kzg.git", branch = "serialize", package = "kzg", features = [
     "parallel",
 ] }
 rayon = "1.10.0"
 sha2 = { version = "0.10.8", features = ["compress"] }
 humansize = "2.1.3"
+serde = { version = "1.0.219", features = ["serde_derive"] }
+bincode = { version = "2.0.1", features = ["serde"] }
+serde_json = "1.0.140"
 
 [dev-dependencies]
 criterion = "0.5.1"

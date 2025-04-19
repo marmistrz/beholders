@@ -1,6 +1,7 @@
 use itertools::izip;
 use kzg_traits::{Fr, G1Mul, KZGSettings, G1};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
+use serde::{Deserialize, Serialize};
 
 use crate::check;
 use crate::commitment::{get_point, open_all_fk20, Commitment, Opening};
@@ -11,7 +12,7 @@ use crate::util::bitxor;
 
 // TODO include beacon
 /// A single Fischlin iteration of the beholder signature
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct BaseProof {
     schnorr: Schnorr, // (a, c, z)
     data: Vec<TFr>,
@@ -19,7 +20,7 @@ pub struct BaseProof {
 }
 
 /// A complete beholder signature
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct Proof {
     pub base_proofs: Vec<BaseProof>,
 }
@@ -324,5 +325,25 @@ mod tests {
         assert!(proof
             .verify(&pk, &com, data.len(), &kzg_settings, bit_difficulty, mvalue)
             .expect("KZG error"));
+    }
+
+    #[test]
+    fn test_serialization() {
+        let base_proof = BaseProof {
+            schnorr: Schnorr {
+                a: TG1::generator(),
+                c: 42,
+                z: TFr::from_u64(1337),
+            },
+            data: vec![TFr::from_u64(4); 16],
+            openings: vec![Opening::default(); 16],
+        };
+
+        let serialized = bincode::serde::encode_to_vec(&base_proof, bincode::config::standard())
+            .expect("Serialization failed");
+        let (deserialized, _len): (BaseProof, _) =
+            bincode::serde::decode_from_slice(&serialized, bincode::config::standard())
+                .expect("Deserialization failed");
+        assert_eq!(base_proof, deserialized);
     }
 }

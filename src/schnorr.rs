@@ -1,12 +1,13 @@
 use crate::types::{TFr, TG1};
 use kzg_traits::{Fr, G1Mul, G1};
+use serde::{Deserialize, Serialize};
 
 /// Secret key for Schnorr signature
 pub(crate) type PublicKey = TG1;
 /// Secret key for Schnorr signature
 pub(crate) type SecretKey = TFr;
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub(crate) struct Schnorr {
     pub(crate) a: TG1,
     pub(crate) c: u32,

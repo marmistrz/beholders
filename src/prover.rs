@@ -1,4 +1,7 @@
-use std::{fs, time::Instant};
+use std::{
+    fs::{self, File},
+    time::Instant,
+};
 
 use anyhow::{bail, Context};
 use beholders::Proof;
@@ -79,13 +82,16 @@ fn main() -> anyhow::Result<()> {
     println!("Proving...");
     let start: Instant = Instant::now();
 
-    let _proof = Proof::prove(&kzg_settings, sk, &data, NFISCH, bit_difficulty, mvalue)
+    let proof = Proof::prove(&kzg_settings, sk, &data, NFISCH, bit_difficulty, mvalue)
         .map_err(anyhow::Error::msg)
         .context("KZG error")?
         .context("Could not find solve the proof-of-work in the beholder signature")?;
     let duration = start.elapsed();
     println!("Proving time: {:?}", duration);
-    // println!("Proof: {:?}", proof);
+
+    let mut file = File::create("proof.bin").expect("Unable to create file");
+    bincode::serde::encode_into_std_write(&proof, &mut file, bincode::config::standard())
+        .expect("Serialization failed");
 
     Ok(())
 
