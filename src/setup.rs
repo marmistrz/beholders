@@ -1,30 +1,10 @@
 use std::{fs::File, io::BufWriter};
 
 use anyhow::Context;
+use beholders::commitment::TrustedSetup;
 use clap::Parser;
-use kzg::{
-    types::{g1::FsG1, g2::FsG2, kzg_settings::FsKZGSettings},
-    utils::generate_trusted_setup,
-};
+use kzg::utils::generate_trusted_setup;
 use kzg_traits::eth;
-use serde::{Deserialize, Serialize};
-
-#[derive(Debug, Serialize, Deserialize)]
-struct TrustedSetup {
-    g1_monomial: Vec<FsG1>,
-    g1_lagrange: Vec<FsG1>,
-    g2_monomial: Vec<FsG2>,
-}
-
-impl TrustedSetup {
-    pub fn from_kzg_settings(kzg_settings: FsKZGSettings) -> Self {
-        Self {
-            g1_monomial: kzg_settings.g1_values_monomial,
-            g1_lagrange: kzg_settings.g1_values_lagrange_brp,
-            g2_monomial: kzg_settings.g2_values_monomial,
-        }
-    }
-}
 
 #[derive(Parser)]
 struct Cli {
