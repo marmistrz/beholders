@@ -1,22 +1,19 @@
 use std::{
     fs::{self, File},
+    io::{BufReader, BufWriter},
+    path::PathBuf,
     time::Instant,
 };
 
 use anyhow::{bail, Context};
-use beholders::Proof;
+use beholders::{commitment::TrustedSetup, Proof};
 use clap::Parser;
 use humansize::{format_size, BINARY};
 use kzg::{
     // eip_4844::load_trusted_setup_filename_rust, // TRUSTED SETUP
-    types::{
-        fft_settings::FsFFTSettings,
-        fr::FsFr,
-        kzg_settings::FsKZGSettings, // TRUSTED SETUP
-    },
-    utils::generate_trusted_setup,
+    types::{fft_settings::FsFFTSettings, fr::FsFr},
 };
-use kzg_traits::{FFTSettings, Fr, KZGSettings};
+use kzg_traits::{FFTSettings, Fr};
 
 // const TRUSTED_SETUP_FILE: &str = "trusted_setup.txt"; // TRUSTED SETUP
 
@@ -35,6 +32,10 @@ struct Cli {
     /// (default is log2(data_len) + 3)
     #[arg(long)]
     bit_difficulty: Option<u32>,
+
+    /// Location of the trusted setup file.
+    #[arg(long)]
+    setup_file: PathBuf,
 }
 
 fn difficulty(data_len: usize) -> u32 {
@@ -68,14 +69,26 @@ fn main() -> anyhow::Result<()> {
     // Data has 2^{scale-1} chunks of 32 bytes
     let secrets_exp = chunks.ilog2();
     let scale = secrets_exp + 1;
-    println!("Generating trusted setup, 2^{secrets_exp} secrets, FFT scale={scale}...");
-    let secrets_len = chunks;
-    let (s1, s2, s3) = generate_trusted_setup(secrets_len, [0; 32]);
-    let fs = FsFFTSettings::new(scale as usize).unwrap();
-    let kzg_settings =
-        FsKZGSettings::new(&s1, &s2, &s3, &fs, kzg_traits::eth::FIELD_ELEMENTS_PER_CELL).unwrap();
-    // let kzg_settings =
-    //     load_trusted_setup_filename_rust(TRUSTED_SETUP_FILE).expect("loading trusted setup");
+
+    println!("Loading trusted setup, 2^{secrets_exp} secrets, FFT scale={scale}...");
+    let fs: FsFFTSettings = FsFFTSettings::new(scale as usize).unwrap();
+    let file = File::open(&args.setup_file)
+        .context(format!("Unable to open file: {:?}", args.setup_file))?;
+    let mut reader = BufReader::new(file);
+    let trusted_setup: TrustedSetup =
+        bincode::serde::decode_from_std_read(&mut reader, bincode::config::standard())
+            .context("Reading trusted setup")?;
+    println!(
+        "Trusted setup: {} {} {}",
+        trusted_setup.g1_monomial.len(),
+        trusted_setup.g1_lagrange.len(),
+        trusted_setup.g2_monomial.len()
+    );
+
+    let kzg_settings = trusted_setup
+        .into_kzg_settings(&fs)
+        .map_err(anyhow::Error::msg)
+        .context("Loading trusted setup")?;
     let duration = start.elapsed();
     println!("Initialization time: {:?}", duration);
 
@@ -89,8 +102,9 @@ fn main() -> anyhow::Result<()> {
     let duration = start.elapsed();
     println!("Proving time: {:?}", duration);
 
-    let mut file = File::create("proof.bin").expect("Unable to create file");
-    bincode::serde::encode_into_std_write(&proof, &mut file, bincode::config::standard())
+    let file = File::create("proof.bin").expect("Unable to create file");
+    let mut writer = BufWriter::new(file);
+    bincode::serde::encode_into_std_write(&proof, &mut writer, bincode::config::standard())
         .expect("Serialization failed");
 
     Ok(())

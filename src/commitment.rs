@@ -1,13 +1,41 @@
 use std::time::Instant;
 
-use kzg_traits::{FFTFr, FFTSettings, FK20SingleSettings, Fr, KZGSettings, Poly};
+use kzg_traits::{eth, FFTFr, FFTSettings, FK20SingleSettings, Fr, KZGSettings, Poly};
+use serde::{Deserialize, Serialize};
 
-use crate::types::{TFK20SingleSettings, TFr, TKZGSettings, TPoly, TG1};
+use crate::types::{TFFTSettings, TFK20SingleSettings, TFr, TKZGSettings, TPoly, TG1, TG2};
 
 /// KZG opening
 pub(crate) type Opening = TG1;
 /// Polynomial Commitment (KZG) value
 pub(crate) type Commitment = TG1;
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TrustedSetup {
+    pub g1_monomial: Vec<TG1>,
+    pub g1_lagrange: Vec<TG1>,
+    pub g2_monomial: Vec<TG2>,
+}
+
+impl TrustedSetup {
+    pub fn from_kzg_settings(kzg_settings: TKZGSettings) -> Self {
+        Self {
+            g1_monomial: kzg_settings.g1_values_monomial,
+            g1_lagrange: kzg_settings.g1_values_lagrange_brp,
+            g2_monomial: kzg_settings.g2_values_monomial,
+        }
+    }
+
+    pub fn into_kzg_settings(self, fs: &TFFTSettings) -> Result<TKZGSettings, String> {
+        TKZGSettings::new(
+            &self.g1_monomial,
+            &self.g1_lagrange,
+            &self.g2_monomial,
+            fs,
+            eth::FIELD_ELEMENTS_PER_CELL,
+        )
+    }
+}
 
 pub(crate) fn interpolate<TFr, TFFT, TPoly>(settings: &TFFT, data: &[TFr]) -> TPoly
 where

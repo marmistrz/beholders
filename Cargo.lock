@@ -507,7 +507,7 @@ dependencies = [
 [[package]]
 name = "kzg"
 version = "0.1.0"
-source = "git+https://github.com/marmistrz/rust-kzg.git?branch=serialize#45dfec7dd40ac653b1f3ffedbeacb48d5e304e7b"
+source = "git+https://github.com/marmistrz/rust-kzg.git?branch=serialize#ea225a02d08e3f4f5fcabd7fd2f9aaf1e7684576"
 dependencies = [
  "hashbrown",
  "num_cpus",
@@ -719,7 +719,7 @@ checksum = "2b15c43186be67a4fd63bee50d0303afffcef381492ebe2c5d87f324e1b8815c"
 [[package]]
 name = "rust-kzg-blst"
 version = "0.1.0"
-source = "git+https://github.com/marmistrz/rust-kzg.git?branch=serialize#45dfec7dd40ac653b1f3ffedbeacb48d5e304e7b"
+source = "git+https://github.com/marmistrz/rust-kzg.git?branch=serialize#ea225a02d08e3f4f5fcabd7fd2f9aaf1e7684576"
 dependencies = [
  "blst",
  "hex",

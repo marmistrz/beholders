@@ -11,6 +11,10 @@ path = "src/prover.rs"
 name = "verifier"
 path = "src/verifier.rs"
 
+[[bin]]
+name = "setup"
+path = "src/setup.rs"
+
 
 [dependencies]
 kzg = { git = "https://github.com/marmistrz/rust-kzg.git", branch = "serialize", package = "rust-kzg-blst", features = [
