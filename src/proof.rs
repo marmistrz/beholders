@@ -97,7 +97,7 @@ impl Proof {
         nfisch: usize,
         difficulty: u32,
         mvalue: usize,
-    ) -> Result<Option<Self>, String> {
+    ) -> Result<(Option<Self>, Commitment), String> {
         assert!(
             data.len().is_power_of_two(),
             "Data length must be a power of two"
@@ -134,7 +134,8 @@ impl Proof {
                 )
             })
             .collect();
-        Ok(proofs.map(|base_proofs| Self { base_proofs }))
+        let proof = proofs.map(|base_proofs| Self { base_proofs });
+        Ok((proof, com))
     }
 }
 
@@ -152,8 +153,7 @@ impl BaseProof {
     ) -> Result<bool, String> {
         let fft_settings = kzg_settings.get_fft_settings();
 
-        println!("Checking Schnorr");
-        check!(self.schnorr.verify(pk));
+        check!(self.schnorr.verify(pk), "Schnorr verification failed");
 
         // Compute the indices as a Vec<usize>
         let indices: Vec<usize> = derive_indices(fisch_iter, self.schnorr.c, mvalue, data_len);
@@ -174,7 +174,10 @@ impl BaseProof {
             let k = k.try_into().unwrap();
             let x = get_point(fft_settings, data_len, idx);
 
-            check!(kzg_settings.check_proof_single(com, opening, x, value)?);
+            check!(
+                kzg_settings.check_proof_single(com, opening, x, value)?,
+                "KZG verification failed"
+            );
 
             let partial_pow =
                 individual_hash(prelude, &self.schnorr, fisch_iter, k, *value, opening);
@@ -182,7 +185,7 @@ impl BaseProof {
         }
 
         // Check PoW
-        check!(pow_pass(&hash, difficulty));
+        check!(pow_pass(&hash, difficulty), "PoW verification failed");
 
         Ok(true)
     }
@@ -215,6 +218,7 @@ impl BaseProof {
                 hash = bitxor(hash, partial_pow);
             }
             if pow_pass(&hash, difficulty) {
+                println!("PoW: {:?}", hash);
                 let openings: Vec<_> = openings.into_iter().copied().collect();
                 return Some(BaseProof {
                     schnorr,
@@ -312,6 +316,7 @@ mod tests {
         let mvalue: usize = 16;
         let proof = Proof::prove(&kzg_settings, sk, &data, nfisch, bit_difficulty, mvalue)
             .expect("KZG error")
+            .0
             .expect("No proof found");
         assert_eq!(proof.base_proofs.len(), nfisch);
         for base_proof in &proof.base_proofs {

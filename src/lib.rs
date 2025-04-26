@@ -7,7 +7,7 @@ pub mod commitment;
 mod hashing;
 pub mod proof;
 mod schnorr;
-mod types;
-mod util;
+pub mod types;
+pub mod util;
 
 pub use proof::Proof;

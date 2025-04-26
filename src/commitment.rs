@@ -6,9 +6,9 @@ use serde::{Deserialize, Serialize};
 use crate::types::{TFFTSettings, TFK20SingleSettings, TFr, TKZGSettings, TPoly, TG1, TG2};
 
 /// KZG opening
-pub(crate) type Opening = TG1;
+pub type Opening = TG1;
 /// Polynomial Commitment (KZG) value
-pub(crate) type Commitment = TG1;
+pub type Commitment = TG1;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TrustedSetup {

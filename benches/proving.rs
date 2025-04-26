@@ -66,6 +66,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
                 M,
             )
             .expect("KZG error")
+            .0
             .expect("No proof found");
         })
     });
