@@ -6,7 +6,7 @@ use std::{
 };
 
 use anyhow::{bail, Context};
-use beholders::{commitment::TrustedSetup, Proof};
+use beholders::{commitment::TrustedSetup, proof::CHUNK_SIZE, Proof};
 use clap::Parser;
 use humansize::{format_size, BINARY};
 use kzg::{
@@ -54,9 +54,8 @@ fn main() -> anyhow::Result<()> {
         .unwrap_or_else(|| difficulty(data.len()));
     let mvalue = args.mvalue;
 
-    // let data: &[u64] = bytemuck::try_cast_slice(&data).unwrap();
     println!("File size: {}", format_size(data.len(), BINARY));
-    let chunks = data.len() / 32;
+    let chunks = data.len() / CHUNK_SIZE;
     println!("Num chunks: {chunks}");
     let sk = FsFr::from_u64(2137);
     println!(

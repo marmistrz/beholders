@@ -19,6 +19,9 @@ pub struct BaseProof {
     openings: Vec<Opening>,
 }
 
+/// Size of the data chunk in bytes
+pub const CHUNK_SIZE: usize = 32;
+
 /// A complete beholder signature
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct Proof {
@@ -101,7 +104,7 @@ impl Proof {
         );
 
         let data: Vec<_> = data
-            .chunks_exact(32)
+            .chunks_exact(CHUNK_SIZE)
             .map(|x| TFr::from_bytes_unchecked(x).unwrap())
             .collect();
 
@@ -317,7 +320,7 @@ mod tests {
         }
 
         let data: Vec<_> = data
-            .chunks_exact(32)
+            .chunks_exact(CHUNK_SIZE)
             .map(|x| TFr::from_bytes_unchecked(x).unwrap())
             .collect();
         let poly = interpolate(kzg_settings.get_fft_settings(), &data);

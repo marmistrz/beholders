@@ -43,11 +43,6 @@ where
     TFFT: FFTSettings<TFr> + FFTFr<TFr>,
     TPoly: Poly<TFr>,
 {
-    // let data: Vec<_> = data
-    //     .chunks_exact(32)
-    //     .map(|x| TFr::from_bytes(x).unwrap())
-    //     .collect();
-    // let data = data.iter().map(|x| TFr::from_u64(*x)).collect::<Vec<_>>();
     let coeffs = settings.fft_fr(data, true).unwrap();
     TPoly::from_coeffs(coeffs.as_slice())
 }
