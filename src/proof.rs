@@ -206,7 +206,7 @@ impl BaseProof {
             let schnorr = Schnorr::prove(sk, r, c);
 
             let indices = derive_indices(fisch_iter, c, mvalue, data.len());
-            let indices: [usize; 16] = indices.try_into().expect("FIXME support m != 16");
+            assert_eq!(indices.len(), mvalue);
             let data: Vec<_> = indices.iter().map(|&i| data[i]).collect();
             let openings: Vec<_> = indices.iter().map(|&i| &openings[i]).collect();
 
