@@ -218,7 +218,6 @@ impl BaseProof {
                 hash = bitxor(hash, partial_pow);
             }
             if pow_pass(&hash, difficulty) {
-                println!("PoW: {:?}", hash);
                 let openings: Vec<_> = openings.into_iter().copied().collect();
                 return Some(BaseProof {
                     schnorr,
