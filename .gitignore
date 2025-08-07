@@ -1,3 +1,6 @@
 /target
 *.bin
 res
+data.bin
+*.bin
+benches/results.txt
