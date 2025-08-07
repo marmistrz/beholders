@@ -54,7 +54,7 @@ fn main() -> anyhow::Result<()> {
     println!("File size: {}", format_size(data.len(), BINARY));
     let chunks = data.len() / 32;
     println!("Num chunks: {chunks}");
-    let sk = FsFr::from_u64(2137);
+    let sk = FsFr::rand();
     println!(
         "Parameters: nfisch: {}, d: {}, m: {}",
         NFISCH, bit_difficulty, mvalue
