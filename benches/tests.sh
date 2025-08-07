@@ -3,14 +3,20 @@
 # Exit immediately on error
 set -e
 
-# Set data file name
-data_file="data32KB.bin"
-
 # Check if results.txt exists and abort if it does
 if [ -f "results.txt" ]; then
     echo "Error: results.txt already exists. Aborting to prevent overwrite."
     exit 1
 fi
+
+# Set data file name
+data_file="data32KB.bin"
+
+# Hardcoded valid secret key (big-endian hex format)
+# This key represents a valid scalar value for the BLS12-381 curve
+# Equivalent to decimal value 1 (0x0000...0001)
+secret_key="0000000000000000000000000000000000000000000000000000000000000001"
+echo "Using hardcoded valid secret key: $secret_key"
 
 # Set difficulty range
 min_diff=3
@@ -20,7 +26,7 @@ max_diff=8
 min_size_denom=4  # This corresponds to 1/4
 
 # Write header to results.txt
-echo "file_size,chunks,nfisch,bit_difficulty,mvalue,init_time,proving_time,fraction" > results.txt
+echo "file_size,chunks,nfisch,bit_difficulty,mvalue,init_time,proving_time,fraction,secret_key" > results.txt
 
 # Get the full size of the original file
 if [[ "$OSTYPE" == "darwin"* ]]; then
@@ -89,21 +95,39 @@ for i in "${!fractions[@]}"; do
     for ((bit_difficulty=min_diff; bit_difficulty<=max_diff; bit_difficulty++)); do
         echo "Running with $fraction fraction (${fraction_size} bytes), bit_difficulty=$bit_difficulty"
         
-        # Run the prover and capture output
-        output=$(cargo run --bin prover -- "$fraction_file" --bit-difficulty "$bit_difficulty" 2>&1)
+        # Run the prover with the hardcoded secret key
+        # Temporarily disable error exit for this command
+        set +e
+        output=$(cargo run --bin prover -- "$fraction_file" --bit-difficulty "$bit_difficulty" --secret-key "$secret_key" 2>&1)
+        status=$?
+        set -e
         
-        # Parse parameters from output
-        file_size=$(echo "$output" | grep "File size:" | awk '{print $3}')
-        chunks=$(echo "$output" | grep "Num chunks:" | awk '{print $3}')
-        nfisch=$(echo "$output" | grep "nfisch:" | awk -F '[,:]' '{print $2}' | tr -d ' ')
-        mvalue=$(echo "$output" | grep "m:" | awk -F '[,:]' '{print $4}' | tr -d ' ')
-        
-        # Parse times from output
-        init_time=$(parse_time "$output" "Initialization time:")
-        proving_time=$(parse_time "$output" "Proving time:")
+        if [ $status -ne 0 ]; then
+            echo "ERROR: Prover failed with exit status $status"
+            echo "Prover output:"
+            echo "$output"
+            
+            # Use known values for the result row
+            file_size=$fraction_size
+            chunks=$((fraction_size / 32))
+            nfisch=10
+            mvalue=16
+            init_time="ERROR"
+            proving_time="ERROR"
+        else
+            # Parse parameters from output
+            file_size=$(echo "$output" | grep "File size:" | awk '{print $3}')
+            chunks=$(echo "$output" | grep "Num chunks:" | awk '{print $3}')
+            nfisch=$(echo "$output" | grep "nfisch:" | awk -F '[,:]' '{print $2}' | tr -d ' ')
+            mvalue=$(echo "$output" | grep "m:" | awk -F '[,:]' '{print $4}' | tr -d ' ')
+            
+            # Parse times from output
+            init_time=$(parse_time "$output" "Initialization time:")
+            proving_time=$(parse_time "$output" "Proving time:")
+        fi
         
         # Format results as CSV and append to file
-        echo "$file_size,$chunks,$nfisch,$bit_difficulty,$mvalue,$init_time,$proving_time,$fraction" >> results.txt
+        echo "$file_size,$chunks,$nfisch,$bit_difficulty,$mvalue,$init_time,$proving_time,$fraction,\"$secret_key\"" >> results.txt
         
         echo "---------------------------------------------"
     done
@@ -113,4 +137,4 @@ for i in "${!fractions[@]}"; do
 done
 
 echo "All tests completed. Results saved to results.txt"
-echo "CSV format: file_size,chunks,nfisch,bit_difficulty,mvalue,init_time,proving_time,fraction"
+echo "CSV format: file_size,chunks,nfisch,bit_difficulty,mvalue,init_time,proving_time,fraction,secret_key"

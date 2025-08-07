@@ -87,6 +87,7 @@ dependencies = [
  "bytemuck",
  "clap",
  "criterion",
+ "hex",
  "humansize",
  "itertools 0.14.0",
  "kzg",
