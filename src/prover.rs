@@ -31,12 +31,12 @@ struct Cli {
     /// The difficulty of the proof-of-work
     /// (default is log2(data_len) + 3)
     #[arg(long)]
-    bit_difficulty: Option<u32>,
+    bit_difficulty: u32,
 }
 
-fn difficulty(data_len: usize) -> u32 {
-    data_len.ilog2()
-}
+//fn difficulty(data_len: usize) -> u32 {
+//    data_len.ilog2()
+//}
 
 fn main() -> anyhow::Result<()> {
     let args = Cli::parse();
@@ -46,8 +46,8 @@ fn main() -> anyhow::Result<()> {
         bail!("Data length needs to be a power of two");
     }
     let bit_difficulty = args
-        .bit_difficulty
-        .unwrap_or_else(|| difficulty(data.len()));
+        .bit_difficulty;
+        //.unwrap_or_else(|| difficulty(data.len()));
     let mvalue = args.mvalue;
 
     // let data: &[u64] = bytemuck::try_cast_slice(&data).unwrap();
