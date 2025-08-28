@@ -13,6 +13,4 @@ cargo run --bin verifier
 cargo nextest run
 ```
 ## Run benchmarks
-```
-cargo bench
-```
+See [benches/README.md](benches/README.md)
