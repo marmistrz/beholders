@@ -5,7 +5,7 @@ use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use crate::check;
 use crate::commitment::{get_point, open_all_fk20, Commitment, Opening};
 use crate::hashing::{derive_indices, individual_hash, pow_pass, prelude, HashOutput, Prelude};
-use crate::schnorr::{PublicKey, Schnorr, SecretKey};
+use crate::schnorr::{maxc, PublicKey, Schnorr, SecretKey};
 use crate::types::{TFr, TKZGSettings, TG1};
 use crate::util::bitxor;
 
@@ -18,19 +18,90 @@ pub struct BaseProof {
     openings: Vec<Opening>,
 }
 
+/// A single Fischlin iteration.
+/// If the solution was found, it contains a valid BaseProof.
+/// Otherwise, it contains only the Schnorr commitment,
+/// which is needed to compute the prelude.
+#[derive(Debug)]
+pub enum FischIter {
+    Commitment(Commitment),
+    BaseProof(BaseProof),
+}
+
+impl FischIter {
+    /// Returns the Schnorr commitment `a`.
+    fn a(&self) -> TG1 {
+        match self {
+            FischIter::Commitment(com) => *com,
+            FischIter::BaseProof(bp) => bp.schnorr.a,
+        }
+    }
+
+    /// Verifies a single Fischlin iteration.
+    /// If only a commitment is present, the proof is considered invalid.
+    pub fn verify(
+        &self,
+        fisch_iter: usize,
+        prelude: Prelude,
+        pk: &PublicKey,
+        com: &Commitment,
+        data_len: usize,
+        kzg_settings: &TKZGSettings,
+        difficulty: u32,
+        mvalue: usize,
+    ) -> Result<bool, String> {
+        match self {
+            FischIter::Commitment(_) => Ok(false),
+            FischIter::BaseProof(bp) => bp.verify(
+                fisch_iter,
+                prelude,
+                pk,
+                com,
+                data_len,
+                kzg_settings,
+                difficulty,
+                mvalue,
+            ),
+        }
+    }
+
+    /// Attempts to solve a single Fischlin iteration.
+    /// Returns either a valid BaseProof or just the Schnorr commitment if no solution was found.
+    pub fn prove(
+        fisch_iter: usize,
+        prelude: Prelude,
+        openings: &[Opening],
+        r: &TFr,
+        sk: &SecretKey,
+        data: &[TFr],
+        difficulty: u32,
+        mvalue: usize,
+    ) -> Self {
+        match BaseProof::prove(
+            fisch_iter, prelude, openings, r, sk, data, difficulty, mvalue,
+        ) {
+            Some(bp) => FischIter::BaseProof(bp),
+            None => Self::Commitment(TG1::generator().mul(r)),
+        }
+    }
+}
+
 /// A complete beholder signature
+/// `base_proofs` contains some _invalid_ proofs.
+/// The signature is valid if at least half of them are valid.
 #[derive(Debug)]
 pub struct Proof {
-    pub base_proofs: Vec<BaseProof>,
+    pub fisch_iters: Vec<FischIter>,
 }
 
 impl Proof {
     fn prelude(&self, pk: &PublicKey, com: &Commitment) -> Prelude {
-        let a_i = self.base_proofs.iter().map(|x| x.schnorr.a);
+        let a_i = self.fisch_iters.iter().map(|x| x.a());
         prelude(pk, com, a_i)
     }
 
     /// Verifies the Beholder Signature.
+    /// The signature is valid if at least half of the included Fischlin proofs are valid.
     ///
     /// # Arguments
     ///
@@ -39,6 +110,7 @@ impl Proof {
     /// * `data_len` - Length of the underlying data.
     /// * `kzg_settings` - KZG trusted setup.
     /// * `difficulty` - The bit difficulty, i.e., the required number of leading zeros.
+    /// * `mvalue` - The number of indices to derive for each Schnorr transcript.
     ///
     /// # Returns
     ///
@@ -52,24 +124,39 @@ impl Proof {
         difficulty: u32,
         mvalue: usize,
     ) -> Result<bool, String> {
+        assert_eq!(self.fisch_iters.len() % 2, 0);
         let prelude = self.prelude(pk, com);
-        for (i, base_proof) in self.base_proofs.iter().enumerate() {
-            if !base_proof.verify(
-                i,
-                prelude,
-                pk,
-                com,
-                data_len,
-                kzg_settings,
-                difficulty,
-                mvalue,
-            )? {
-                println!("Failed at base proof {}", i);
-                return Ok(false);
-            }
-        }
+        let verifications: Vec<_> = self
+            .fisch_iters
+            .iter()
+            .enumerate()
+            .map(|(fisch_iter, base_proof)| {
+                base_proof.verify(
+                    fisch_iter,
+                    prelude,
+                    pk,
+                    com,
+                    data_len,
+                    kzg_settings,
+                    difficulty,
+                    mvalue,
+                )
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let passed = verifications.iter().filter(|&&x| x).count();
+        // for base_proof in &self.base_proofs {
+        //     if !base_proof.verify(prelude, pk, com, data_len, kzg_settings, difficulty, mvalue)? {
+        //         println!("Failed at base proof {}", base_proof.fisch_iter);
+        //         return Ok(false);
+        //     }
+        // }
+        println!(
+            "Passed {}/{} Fischlin iterations",
+            passed,
+            self.fisch_iters.len()
+        );
 
-        Ok(true)
+        Ok(passed * 2 >= self.fisch_iters.len())
     }
 
     /// Generates a Beholder Signature for the given data.
@@ -115,10 +202,10 @@ impl Proof {
         let pk = generator.mul(&sk);
         let prelude = prelude(&pk, &com, a_i);
 
-        let proofs: Option<Vec<_>> = (0..nfisch)
+        let fisch_iters: Vec<_> = (0..nfisch)
             .into_par_iter()
             .map(|fisch_iter| {
-                BaseProof::prove(
+                FischIter::prove(
                     fisch_iter,
                     prelude,
                     &openings,
@@ -130,7 +217,9 @@ impl Proof {
                 )
             })
             .collect();
-        Ok(proofs.map(|base_proofs| Self { base_proofs }))
+        assert_eq!(fisch_iters.len(), nfisch);
+
+        Ok(Some(Self { fisch_iters }))
     }
 }
 
@@ -147,6 +236,8 @@ impl BaseProof {
         mvalue: usize,
     ) -> Result<bool, String> {
         let fft_settings = kzg_settings.get_fft_settings();
+
+        check!(self.schnorr.c <= maxc(difficulty));
 
         println!("Checking Schnorr");
         check!(self.schnorr.verify(pk));
@@ -178,11 +269,14 @@ impl BaseProof {
         }
 
         // Check PoW
+        println!("Checking PoW");
         check!(pow_pass(&hash, difficulty));
 
         Ok(true)
     }
 
+    /// Attempts to solve a single Fischlin iteration.
+    /// Returns `Some(BaseProof)` if the proof-of-work successful, `None` if no solution was found.
     pub fn prove(
         fisch_iter: usize,
         prelude: Prelude,
@@ -194,7 +288,7 @@ impl BaseProof {
         mvalue: usize,
     ) -> Option<Self> {
         assert_eq!(data.len(), openings.len());
-        let maxc = 1u32 << (difficulty + 5);
+        let maxc = maxc(difficulty); // Try up to 2^difficulty values of c
         for c in 0..maxc {
             let schnorr = Schnorr::prove(sk, r, c);
 
@@ -233,6 +327,7 @@ mod tests {
     use kzg_traits::FFTSettings;
 
     use crate::commitment::interpolate;
+    use crate::schnorr::maxc;
 
     use super::*;
     const M: usize = 16;
@@ -309,10 +404,12 @@ mod tests {
         let proof = Proof::prove(&kzg_settings, sk, &data, nfisch, bit_difficulty, mvalue)
             .expect("KZG error")
             .expect("No proof found");
-        assert_eq!(proof.base_proofs.len(), nfisch);
-        for base_proof in &proof.base_proofs {
-            assert_eq!(base_proof.data.len(), M);
-            assert!(base_proof.schnorr.verify(&pk));
+        assert_eq!(proof.fisch_iters.len(), nfisch);
+        for base_proof in &proof.fisch_iters {
+            if let FischIter::BaseProof(base_proof) = base_proof {
+                assert_eq!(base_proof.data.len(), M);
+                assert!(base_proof.schnorr.verify(&pk));
+            }
         }
 
         let data: Vec<_> = data
@@ -324,5 +421,152 @@ mod tests {
         assert!(proof
             .verify(&pk, &com, data.len(), &kzg_settings, bit_difficulty, mvalue)
             .expect("KZG error"));
+    }
+
+    #[test]
+    /// Tests whether the proof verification only requires half of the Fischlin iterations to be valid.
+    fn test_base_proof_tolerance() {
+        let data = [4; 128];
+        let bit_difficulty = 1;
+
+        let secrets_len = 16;
+        let (s1, s2, s3) = generate_trusted_setup(secrets_len, [0; 32]);
+        let fs = FsFFTSettings::new(4).unwrap();
+        let kzg_settings: FsKZGSettings = FsKZGSettings::new(&s1, &s2, &s3, &fs, 7).unwrap();
+
+        let g = TG1::generator();
+        let sk = SecretKey::from_u64(2137);
+        let pk = g.mul(&sk);
+
+        let nfisch = 4;
+        let mvalue: usize = 16;
+        let mut proof = Proof::prove(&kzg_settings, sk, &data, nfisch, bit_difficulty, mvalue)
+            .expect("KZG error")
+            .expect("No proof found");
+        assert_eq!(proof.fisch_iters.len(), nfisch);
+
+        // Should verify
+        let data: Vec<_> = data
+            .chunks_exact(32)
+            .map(|x| TFr::from_bytes_unchecked(x).unwrap())
+            .collect();
+        let poly = interpolate(kzg_settings.get_fft_settings(), &data);
+        let com = kzg_settings.commit_to_poly(&poly).expect("commit");
+
+        assert!(proof
+            .verify(&pk, &com, data.len(), &kzg_settings, bit_difficulty, mvalue)
+            .expect("KZG error"));
+
+        // Corrupt half of the valid proofs to simulate iterations that did not find a solution
+        let mut nfailed = proof
+            .fisch_iters
+            .iter()
+            .filter(|x| matches!(x, FischIter::Commitment(_)))
+            .count();
+        let half = proof.fisch_iters.len() / 2;
+        for i in 0..proof.fisch_iters.len() {
+            if nfailed >= half {
+                break;
+            }
+            if let FischIter::BaseProof(_) = proof.fisch_iters[i] {
+                println!("Corrupting proof {}", i);
+                let a = proof.fisch_iters[i].a();
+                proof.fisch_iters[i] = FischIter::Commitment(a);
+                nfailed += 1;
+            }
+        }
+
+        // Should still verify, since half are valid
+        assert!(proof
+            .verify(&pk, &com, data.len(), &kzg_settings, bit_difficulty, mvalue)
+            .expect("KZG error"));
+
+        // Corrupt one more proof, so less than half are valid
+        for i in 0..proof.fisch_iters.len() {
+            if let FischIter::BaseProof(_) = proof.fisch_iters[i] {
+                println!("Corrupting proof {}", i);
+                let a = proof.fisch_iters[i].a();
+                proof.fisch_iters[i] = FischIter::Commitment(a);
+                break;
+            }
+        }
+
+        // Should now fail verification
+        assert!(!proof
+            .verify(&pk, &com, data.len(), &kzg_settings, bit_difficulty, mvalue)
+            .expect("KZG error"));
+    }
+
+    #[test]
+    fn base_proof_fails_if_c_exceeds_max() {
+        let data: Vec<TFr> = vec![1, 2, 3, 4].into_iter().map(TFr::from_u64).collect();
+
+        let secrets_len = 16;
+        let (s1, s2, s3) = generate_trusted_setup(secrets_len, [0; 32]);
+        let fs = FsFFTSettings::new(4).unwrap();
+        let kzg_settings: FsKZGSettings = FsKZGSettings::new(&s1, &s2, &s3, &fs, 7).unwrap();
+
+        let (_com, openings) = open_all_fk20(&kzg_settings, &data).expect("openings");
+        assert_eq!(openings.len(), data.len());
+
+        let g = TG1::generator();
+        let r = FsFr::from_u64(42);
+        let sk = SecretKey::from_u64(1234);
+        let pk = g.mul(&sk);
+        let byte_difficulty = 2;
+        let mvalue: usize = 4;
+        let fisch_iter = 0;
+        let prelude = [0; 8];
+
+        // Try to create a Schnorr proof with c > maxc(difficulty)
+        let invalid_c = maxc(byte_difficulty) + 1;
+        let invalid_c_max = invalid_c + 2000;
+        let mut base_proof = None;
+        for c in invalid_c..invalid_c_max {
+            let schnorr = Schnorr::prove(&sk, &r, c);
+
+            let indices = derive_indices(fisch_iter, c, mvalue, data.len());
+            let indices: Vec<usize> = indices.into_iter().collect();
+            let data_selected: Vec<_> = indices.iter().map(|&i| data[i]).collect();
+            let openings_selected: Vec<_> = indices.iter().map(|&i| openings[i]).collect();
+
+            // Manually compute the PoW hash
+            let mut hash = HashOutput::default();
+            for (k, (val, opening)) in
+                izip!(data_selected.iter(), openings_selected.iter()).enumerate()
+            {
+                let k = k.try_into().unwrap();
+                let partial_pow = individual_hash(prelude, &schnorr, fisch_iter, k, *val, opening);
+                hash = bitxor(hash, partial_pow);
+            }
+            // Only use the proof if PoW passes
+            if pow_pass(&hash, byte_difficulty) {
+                base_proof = Some(BaseProof {
+                    schnorr,
+                    data: data_selected,
+                    openings: openings_selected,
+                });
+                break;
+            }
+        }
+        let base_proof = base_proof.expect("No valid PoW found for invalid_c");
+
+        let poly = interpolate(kzg_settings.get_fft_settings(), &data);
+        let com = kzg_settings.commit_to_poly(&poly).expect("commit");
+
+        let result = base_proof
+            .verify(
+                fisch_iter,
+                prelude,
+                &pk,
+                &com,
+                data.len(),
+                &kzg_settings,
+                byte_difficulty,
+                mvalue,
+            )
+            .expect("KZG error");
+
+        assert!(!result, "Proof should fail if c exceeds maxc");
     }
 }

@@ -30,6 +30,10 @@ impl Schnorr {
     }
 }
 
+pub fn maxc(difficulty: u32) -> u32 {
+    1u32 << difficulty
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

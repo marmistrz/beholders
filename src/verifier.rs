@@ -5,7 +5,7 @@ const MVALUE: usize = 16;
 
 fn main() {
     let proof = Proof {
-        base_proofs: vec![],
+        fisch_iters: vec![],
     };
     assert!(proof
         .verify(
