@@ -6,7 +6,6 @@ This script reads benchmark result files from the res/ directory and creates
 a pandas DataFrame with file size, initialization time, FK20 time, and proving time.
 """
 
-import os
 import re
 import pandas as pd
 from pathlib import Path
