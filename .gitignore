@@ -4,3 +4,4 @@ res
 data.bin
 *.bin
 benches/results.txt
+*.tex
