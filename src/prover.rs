@@ -29,7 +29,8 @@ struct Cli {
     mvalue: usize,
 
     /// The difficulty of the proof-of-work
-    /// (default is log2(data_len) + 3)
+    /// (default is log2(N) + 3)
+    /// where N is the length in chunks of 32 bytes
     #[arg(long)]
     bit_difficulty: Option<u32>,
 
@@ -49,15 +50,14 @@ fn main() -> anyhow::Result<()> {
     if !data.len().is_power_of_two() {
         bail!("Data length needs to be a power of two");
     }
-    let bit_difficulty = args
-        .bit_difficulty
-        .unwrap_or_else(|| difficulty(data.len()));
+
     let mvalue = args.mvalue;
 
     // let data: &[u64] = bytemuck::try_cast_slice(&data).unwrap();
     println!("File size: {}", format_size(data.len(), BINARY));
     let chunks = data.len() / 32;
     println!("Num chunks: {chunks}");
+    let bit_difficulty = args.bit_difficulty.unwrap_or_else(|| difficulty(chunks));
 
     // Handle secret key input (added logic)
     let sk = if let Some(hex_sk) = &args.secret_key {

@@ -11,16 +11,20 @@ import re
 import pandas as pd
 from pathlib import Path
 from typing import Optional, Dict, Any, Union, cast
+from humanfriendly import parse_size
 
 
 def parse_file_size(size_str: str) -> Optional[int]:
     """
-    Parse file size string like '128 KiB' and return size in KiB as integer.
+    Parse file size string like '128 KiB' or '1 MiB' and return size in KiB as integer.
+    Uses humanfriendly.parse_size for robust parsing.
     """
-    match = re.search(r'(\d+)\s*KiB', size_str)
-    if match:
-        return int(match.group(1))
-    return None
+    try:
+        # parse_size returns bytes, convert to KiB
+        size_bytes = parse_size(size_str)
+        return int(size_bytes // 1024)
+    except Exception:
+        return None
 
 
 def parse_time(time_str: str) -> Optional[float]:
