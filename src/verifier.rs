@@ -21,7 +21,7 @@ struct Cli {
     #[arg(index = 2)]
     signature: PathBuf,
 
-    /// The numeber of indices to derive for each Schnorr transcript
+    /// The number of indices to derive for each Schnorr transcript
     #[arg(long, default_value_t = 16)]
     mvalue: usize,
 
