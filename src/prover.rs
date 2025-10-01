@@ -34,17 +34,22 @@ struct Cli {
     signature: std::path::PathBuf,
 
     /// The numeber of indices to derive for each Schnorr transcript
-    #[arg(long, default_value_t = 16)]
+    #[arg(long, default_value_t = 4)]
     mvalue: usize,
 
     /// The difficulty of the proof-of-work
-    /// (default is log2(data_len) + 3)
+    /// (default is log2(N) + 3)
+    /// where N is the length in chunks of 32 bytes
     #[arg(long)]
     bit_difficulty: Option<u32>,
 
     /// Location of the trusted setup file.
     #[arg(long)]
     setup_file: PathBuf,
+
+    /// Secret key as 32-byte hex string (big-endian). Random if not provided.
+    #[arg(long)]
+    secret_key: Option<String>, // Added secret-key option
 }
 
 fn difficulty(data_len: usize) -> u32 {
@@ -58,15 +63,37 @@ fn main() -> anyhow::Result<()> {
     if !data.len().is_power_of_two() {
         bail!("Data length needs to be a power of two");
     }
-    let bit_difficulty = args
-        .bit_difficulty
-        .unwrap_or_else(|| difficulty(data.len()));
+
     let mvalue = args.mvalue;
 
     println!("File size: {}", format_size(data.len(), BINARY));
     let chunks = data.len() / CHUNK_SIZE;
     println!("Num chunks: {chunks}");
-    let sk = FsFr::from_u64(2137);
+    let bit_difficulty = args.bit_difficulty.unwrap_or_else(|| difficulty(chunks));
+
+    // Handle secret key input (added logic)
+    let sk = if let Some(hex_sk) = &args.secret_key {
+        // Strip optional 0x prefix
+        let hex_str = hex_sk.strip_prefix("0x").unwrap_or(hex_sk);
+        let bytes = hex::decode(hex_str).context("Failed to decode hex secret key")?;
+
+        // Validate length
+        if bytes.len() != 32 {
+            bail!("Secret key must be 32 bytes, got {}", bytes.len());
+        }
+
+        // Convert big-endian input to little-endian
+        let mut le_bytes = bytes.clone();
+        le_bytes.reverse();
+        let mut array = [0u8; 32];
+        array.copy_from_slice(&le_bytes);
+
+        FsFr::from_bytes(&array).map_err(|e| anyhow::anyhow!("Invalid secret key: {}", e))?
+    } else {
+        // Fallback to random generation
+        FsFr::rand()
+    };
+
     println!(
         "Parameters: nfisch: {}, d: {}, m: {}",
         NFISCH, bit_difficulty, mvalue

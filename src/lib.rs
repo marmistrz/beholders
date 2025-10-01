@@ -3,6 +3,7 @@
     clippy::cloned_instead_of_copied,
     clippy::explicit_iter_loop
 )]
+#![allow(clippy::too_many_arguments)]
 pub mod commitment;
 mod hashing;
 pub mod proof;

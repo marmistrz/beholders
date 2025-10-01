@@ -29,7 +29,5 @@ cargo run --bin verifier --release -- --bit-difficulty 10 --setup-file secrets.b
 ```
 cargo nextest run
 ```
-### Run benchmarks
-```
-cargo bench
-```
+## Run benchmarks
+See [benches/README.md](benches/README.md)
