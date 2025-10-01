@@ -11,7 +11,7 @@ use crate::types::{TFr, TKZGSettings, TG1};
 use crate::util::bitxor;
 
 // TODO include beacon
-/// A single Fischlin iteration of the beholder signature
+/// A *successful* Fischlin iteration that managed to pass the proof-of-work.
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct BaseProof {
     schnorr: Schnorr, // (a, c, z)
@@ -22,7 +22,6 @@ pub struct BaseProof {
 /// Size of the data chunk in bytes
 pub const CHUNK_SIZE: usize = 32;
 
-/// A complete beholder signature
 /// A single Fischlin iteration.
 /// If the solution was found, it contains a valid BaseProof.
 /// Otherwise, it contains only the Schnorr commitment,
@@ -246,8 +245,6 @@ impl BaseProof {
         let fft_settings = kzg_settings.get_fft_settings();
 
         check!(self.schnorr.c <= maxc(difficulty), "c too large");
-
-        println!("Checking Schnorr");
         check!(self.schnorr.verify(pk), "Schnorr verification failed");
 
         // Compute the indices as a Vec<usize>

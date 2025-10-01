@@ -5,7 +5,7 @@
 )]
 #![allow(clippy::too_many_arguments)]
 pub mod commitment;
-mod hashing;
+pub mod hashing;
 pub mod proof;
 mod schnorr;
 pub mod types;

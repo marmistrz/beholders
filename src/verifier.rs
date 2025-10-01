@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use beholders::{
     commitment::{Commitment, TrustedSetup},
+    hashing::difficulty,
     proof::CHUNK_SIZE,
     types::{TFr, TG1},
     util::{fft_settings, read_from_file},
@@ -25,7 +26,7 @@ struct Cli {
     mvalue: usize,
 
     /// The difficulty of the proof-of-work
-    /// (default is log2(data_len) + 3)
+    /// (default is log2(N) + 3)
     #[arg(long)]
     bit_difficulty: Option<u32>,
 
@@ -44,6 +45,7 @@ fn main() -> anyhow::Result<()> {
     let pk = TG1::generator().mul(&sk);
 
     let chunks = args.data_len / CHUNK_SIZE;
+    let bit_difficulty = args.bit_difficulty.unwrap_or_else(|| difficulty(chunks));
 
     println!("Loading trusted setup");
     let trusted_setup: TrustedSetup = read_from_file(&args.setup_file)?;
@@ -63,10 +65,10 @@ fn main() -> anyhow::Result<()> {
             &commitment,
             chunks,
             &kzg_settings,
-            args.bit_difficulty.expect("FIXME"),
+            bit_difficulty,
             args.mvalue,
         )
-        .unwrap();
+        .expect("KZG error");
 
     println!("Proof verified successfully");
     Ok(())

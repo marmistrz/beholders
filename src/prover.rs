@@ -3,6 +3,7 @@ use std::{fs, path::PathBuf, time::Instant};
 use anyhow::{bail, Context};
 use beholders::{
     commitment::TrustedSetup,
+    hashing::difficulty,
     proof::CHUNK_SIZE,
     util::{fft_settings, read_from_file, write_to_file},
     Proof,
@@ -50,10 +51,6 @@ struct Cli {
     /// Secret key as 32-byte hex string (big-endian). Random if not provided.
     #[arg(long)]
     secret_key: Option<String>, // Added secret-key option
-}
-
-fn difficulty(data_len: usize) -> u32 {
-    data_len.ilog2()
 }
 
 fn main() -> anyhow::Result<()> {
@@ -112,6 +109,7 @@ fn main() -> anyhow::Result<()> {
         trusted_setup.g2_monomial.len()
     );
 
+    println!("Building KZG settings...");
     let kzg_settings = trusted_setup
         .into_kzg_settings(&fs)
         .map_err(anyhow::Error::msg)

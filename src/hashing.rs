@@ -93,6 +93,10 @@ pub(crate) fn pow_pass(hash_output: &HashOutput, difficulty: u32) -> bool {
     hash_output[0].trailing_zeros() >= difficulty
 }
 
+pub fn difficulty(chunks: usize) -> u32 {
+    chunks.ilog2() + 3
+}
+
 #[cfg(test)]
 mod tests {
     use kzg::types::g1::FsG1;
