@@ -30,7 +30,7 @@ struct Cli {
     #[arg(index = 2)]
     commitment: std::path::PathBuf,
 
-    /// The path where the commitment should be written
+    /// The signature output path
     #[arg(index = 3)]
     signature: std::path::PathBuf,
 
