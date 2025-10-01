@@ -34,7 +34,7 @@ struct Cli {
     #[arg(index = 3)]
     signature: std::path::PathBuf,
 
-    /// The numeber of indices to derive for each Schnorr transcript
+    /// The number of indices to derive for each Schnorr transcript
     #[arg(long, default_value_t = 4)]
     mvalue: usize,
 
