@@ -92,9 +92,9 @@ impl FischIter {
 }
 
 /// A complete beholder signature
-/// `base_proofs` contains some _invalid_ proofs.
+/// `fisch_iters` contains some *invalid* proofs.
 /// The signature is valid if at least half of them are valid.
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct Proof {
     pub fisch_iters: Vec<FischIter>,
 }
@@ -176,7 +176,9 @@ impl Proof {
     ///
     /// # Returns
     ///
-    /// Returns `Ok(Some(Self))` if the proof generation is successful, `Ok(None)` if it fails,
+    /// Returns `Ok(sig, com)` where `sig` is the generated Beholder signature and `com` is the KZG commitment to the data.
+    /// If the solution was not found, `sig` is `None`, which indicates that one should restart the signing with fresh randomness,
+    /// otherwise sig is `Some`.
     /// or an `Err` with a string message in case of an error.
     pub fn prove(
         kzg_settings: &TKZGSettings,
@@ -224,7 +226,8 @@ impl Proof {
             .collect();
         assert_eq!(fisch_iters.len(), nfisch);
 
-        Ok(Some(Self { fisch_iters }))
+        let sig = Some(Self { fisch_iters });
+        Ok((sig, com))
     }
 }
 
@@ -467,9 +470,10 @@ mod tests {
 
         let nfisch = 4;
         let mvalue: usize = 16;
-        let mut proof = Proof::prove(&kzg_settings, sk, &data, nfisch, bit_difficulty, mvalue)
-            .expect("KZG error")
-            .expect("No proof found");
+        let (proof, com) = Proof::prove(&kzg_settings, sk, &data, nfisch, bit_difficulty, mvalue)
+            .expect("KZG error");
+
+        let mut proof = proof.expect("No solution found");
         assert_eq!(proof.fisch_iters.len(), nfisch);
 
         // Should verify
@@ -477,8 +481,6 @@ mod tests {
             .chunks_exact(32)
             .map(|x| TFr::from_bytes_unchecked(x).unwrap())
             .collect();
-        let poly = interpolate(kzg_settings.get_fft_settings(), &data);
-        let com = kzg_settings.commit_to_poly(&poly).expect("commit");
 
         assert!(proof
             .verify(&pk, &com, data.len(), &kzg_settings, bit_difficulty, mvalue)
