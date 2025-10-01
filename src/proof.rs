@@ -455,6 +455,7 @@ mod tests {
     }
 
     /// Tests whether the proof verification only requires half of the Fischlin iterations to be valid.
+    #[test]
     fn test_base_proof_tolerance() {
         let data = [4; 128];
         let bit_difficulty = 1;
@@ -478,7 +479,7 @@ mod tests {
 
         // Should verify
         let data: Vec<_> = data
-            .chunks_exact(32)
+            .chunks_exact(CHUNK_SIZE)
             .map(|x| TFr::from_bytes_unchecked(x).unwrap())
             .collect();
 
