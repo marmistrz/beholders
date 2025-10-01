@@ -1,4 +1,10 @@
-use std::ops::BitXor;
+use std::{fs::File, io::BufReader, ops::BitXor, path::Path};
+
+use anyhow::Context;
+use kzg_traits::FFTSettings;
+use serde::{de::DeserializeOwned, Serialize};
+
+use crate::types::TFFTSettings;
 
 /// Bitwise XOR of two arrays.
 pub(crate) fn bitxor<T: BitXor, const N: usize>(
@@ -14,11 +20,38 @@ pub(crate) fn bitxor<T: BitXor, const N: usize>(
 
 #[macro_export]
 macro_rules! check {
-    ($expr:expr $(,)?) => {
+    ($expr:expr, $msg:expr $(,)?) => {
         if !$expr {
+            eprintln!("{}", $msg);
             return Ok(false);
         }
     };
+}
+
+pub fn write_to_file<T: Serialize>(path: &std::path::Path, data: &T) -> anyhow::Result<()> {
+    let file = std::fs::File::create(path).context(format!("Unable to create file: {:?}", path))?;
+    let mut writer = std::io::BufWriter::new(file);
+    bincode::serde::encode_into_std_write(data, &mut writer, bincode::config::standard())
+        .context("Bincode serialization error")?;
+    Ok(())
+}
+
+pub fn read_from_file<T: DeserializeOwned>(path: &Path) -> anyhow::Result<T> {
+    let file = File::open(path).context(format!("Unable to open file: {:?}", path))?;
+    let mut reader = BufReader::new(file);
+    bincode::serde::decode_from_std_read(&mut reader, bincode::config::standard())
+        .context("Bincode deserialization error")
+}
+
+/// Returns the FFT settings for a given data length.
+pub fn fft_settings(chunks: usize) -> Result<TFFTSettings, String> {
+    assert!(
+        chunks.is_power_of_two(),
+        "The number of chunks needs to be a power of two"
+    );
+
+    let scale = chunks.ilog2() + 1;
+    TFFTSettings::new(scale.try_into().unwrap())
 }
 
 #[cfg(test)]
@@ -36,12 +69,12 @@ mod tests {
     #[test]
     fn test_check() {
         fn a() -> Result<bool, ()> {
-            check!(true);
+            check!(true, "");
             Err(())
         }
 
         fn b() -> Result<bool, ()> {
-            check!(false);
+            check!(false, "");
             Err(())
         }
 

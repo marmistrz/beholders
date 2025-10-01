@@ -1,6 +1,7 @@
 use itertools::izip;
 use kzg_traits::{Fr, G1Mul, KZGSettings, G1};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
+use serde::{Deserialize, Serialize};
 
 use crate::check;
 use crate::commitment::{get_point, open_all_fk20, Commitment, Opening};
@@ -10,19 +11,22 @@ use crate::types::{TFr, TKZGSettings, TG1};
 use crate::util::bitxor;
 
 // TODO include beacon
-/// A single Fischlin iteration of the beholder signature
-#[derive(Debug)]
+/// A *successful* Fischlin iteration that managed to pass the proof-of-work.
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct BaseProof {
     schnorr: Schnorr, // (a, c, z)
     data: Vec<TFr>,
     openings: Vec<Opening>,
 }
 
+/// Size of the data chunk in bytes
+pub const CHUNK_SIZE: usize = 32;
+
 /// A single Fischlin iteration.
 /// If the solution was found, it contains a valid BaseProof.
 /// Otherwise, it contains only the Schnorr commitment,
 /// which is needed to compute the prelude.
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub enum FischIter {
     Commitment(Commitment),
     BaseProof(BaseProof),
@@ -87,9 +91,9 @@ impl FischIter {
 }
 
 /// A complete beholder signature
-/// `base_proofs` contains some _invalid_ proofs.
+/// `fisch_iters` contains some *invalid* proofs.
 /// The signature is valid if at least half of them are valid.
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct Proof {
     pub fisch_iters: Vec<FischIter>,
 }
@@ -171,7 +175,9 @@ impl Proof {
     ///
     /// # Returns
     ///
-    /// Returns `Ok(Some(Self))` if the proof generation is successful, `Ok(None)` if it fails,
+    /// Returns `Ok(sig, com)` where `sig` is the generated Beholder signature and `com` is the KZG commitment to the data.
+    /// If the solution was not found, `sig` is `None`, which indicates that one should restart the signing with fresh randomness,
+    /// otherwise sig is `Some`.
     /// or an `Err` with a string message in case of an error.
     pub fn prove(
         kzg_settings: &TKZGSettings,
@@ -180,14 +186,14 @@ impl Proof {
         nfisch: usize,
         difficulty: u32,
         mvalue: usize,
-    ) -> Result<Option<Self>, String> {
+    ) -> Result<(Option<Self>, Commitment), String> {
         assert!(
             data.len().is_power_of_two(),
             "Data length must be a power of two"
         );
 
         let data: Vec<_> = data
-            .chunks_exact(32)
+            .chunks_exact(CHUNK_SIZE)
             .map(|x| TFr::from_bytes_unchecked(x).unwrap())
             .collect();
 
@@ -219,7 +225,8 @@ impl Proof {
             .collect();
         assert_eq!(fisch_iters.len(), nfisch);
 
-        Ok(Some(Self { fisch_iters }))
+        let sig = Some(Self { fisch_iters });
+        Ok((sig, com))
     }
 }
 
@@ -237,10 +244,8 @@ impl BaseProof {
     ) -> Result<bool, String> {
         let fft_settings = kzg_settings.get_fft_settings();
 
-        check!(self.schnorr.c <= maxc(difficulty));
-
-        println!("Checking Schnorr");
-        check!(self.schnorr.verify(pk));
+        check!(self.schnorr.c <= maxc(difficulty), "c too large");
+        check!(self.schnorr.verify(pk), "Schnorr verification failed");
 
         // Compute the indices as a Vec<usize>
         let indices: Vec<usize> = derive_indices(fisch_iter, self.schnorr.c, mvalue, data_len);
@@ -261,7 +266,10 @@ impl BaseProof {
             let k = k.try_into().unwrap();
             let x = get_point(fft_settings, data_len, idx);
 
-            check!(kzg_settings.check_proof_single(com, opening, x, value)?);
+            check!(
+                kzg_settings.check_proof_single(com, opening, x, value)?,
+                "KZG verification failed"
+            );
 
             let partial_pow =
                 individual_hash(prelude, &self.schnorr, fisch_iter, k, *value, opening);
@@ -269,8 +277,7 @@ impl BaseProof {
         }
 
         // Check PoW
-        println!("Checking PoW");
-        check!(pow_pass(&hash, difficulty));
+        check!(pow_pass(&hash, difficulty), "PoW verification failed");
 
         Ok(true)
     }
@@ -293,6 +300,7 @@ impl BaseProof {
             let schnorr = Schnorr::prove(sk, r, c);
 
             let indices = derive_indices(fisch_iter, c, mvalue, data.len());
+            assert_eq!(indices.len(), mvalue);
             let data: Vec<_> = indices.iter().map(|&i| data[i]).collect();
             let openings: Vec<_> = indices.iter().map(|&i| &openings[i]).collect();
 
@@ -402,6 +410,7 @@ mod tests {
         let mvalue: usize = 16;
         let proof = Proof::prove(&kzg_settings, sk, &data, nfisch, bit_difficulty, mvalue)
             .expect("KZG error")
+            .0
             .expect("No proof found");
         assert_eq!(proof.fisch_iters.len(), nfisch);
         for base_proof in &proof.fisch_iters {
@@ -412,7 +421,7 @@ mod tests {
         }
 
         let data: Vec<_> = data
-            .chunks_exact(32)
+            .chunks_exact(CHUNK_SIZE)
             .map(|x| TFr::from_bytes_unchecked(x).unwrap())
             .collect();
         let poly = interpolate(kzg_settings.get_fft_settings(), &data);
@@ -423,7 +432,27 @@ mod tests {
     }
 
     #[test]
+    fn test_serialization() {
+        let base_proof = BaseProof {
+            schnorr: Schnorr {
+                a: TG1::generator(),
+                c: 42,
+                z: TFr::from_u64(1337),
+            },
+            data: vec![TFr::from_u64(4); 16],
+            openings: vec![Opening::default(); 16],
+        };
+
+        let serialized = bincode::serde::encode_to_vec(&base_proof, bincode::config::standard())
+            .expect("Serialization failed");
+        let (deserialized, _len): (BaseProof, _) =
+            bincode::serde::decode_from_slice(&serialized, bincode::config::standard())
+                .expect("Deserialization failed");
+        assert_eq!(base_proof, deserialized);
+    }
+
     /// Tests whether the proof verification only requires half of the Fischlin iterations to be valid.
+    #[test]
     fn test_base_proof_tolerance() {
         let data = [4; 128];
         let bit_difficulty = 1;
@@ -439,18 +468,17 @@ mod tests {
 
         let nfisch = 4;
         let mvalue: usize = 16;
-        let mut proof = Proof::prove(&kzg_settings, sk, &data, nfisch, bit_difficulty, mvalue)
-            .expect("KZG error")
-            .expect("No proof found");
+        let (proof, com) = Proof::prove(&kzg_settings, sk, &data, nfisch, bit_difficulty, mvalue)
+            .expect("KZG error");
+
+        let mut proof = proof.expect("No solution found");
         assert_eq!(proof.fisch_iters.len(), nfisch);
 
         // Should verify
         let data: Vec<_> = data
-            .chunks_exact(32)
+            .chunks_exact(CHUNK_SIZE)
             .map(|x| TFr::from_bytes_unchecked(x).unwrap())
             .collect();
-        let poly = interpolate(kzg_settings.get_fft_settings(), &data);
-        let com = kzg_settings.commit_to_poly(&poly).expect("commit");
 
         assert!(proof
             .verify(&pk, &com, data.len(), &kzg_settings, bit_difficulty, mvalue)

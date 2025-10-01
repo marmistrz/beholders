@@ -1,6 +1,10 @@
 use std::time::Duration;
 
-use beholders::{commitment::open_all_fk20, proof::BaseProof, Proof};
+use beholders::{
+    commitment::open_all_fk20,
+    proof::{BaseProof, CHUNK_SIZE},
+    Proof,
+};
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use kzg::{eip_4844::load_trusted_setup_filename_rust, types::fr::FsFr};
 use kzg_traits::Fr;
@@ -11,7 +15,7 @@ const TRUSTED_SETUP_FILE: &str = "trusted_setup.txt";
 pub fn criterion_benchmark(c: &mut Criterion) {
     let data = vec![7; 1024];
     let datafr: Vec<_> = data
-        .chunks_exact(32)
+        .chunks_exact(CHUNK_SIZE)
         .map(|x| FsFr::from_bytes_unchecked(x).unwrap())
         .collect();
     let kzg_settings =
@@ -62,6 +66,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
                 M,
             )
             .expect("KZG error")
+            .0
             .expect("No proof found");
         })
     });

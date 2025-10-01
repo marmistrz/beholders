@@ -1,30 +1,40 @@
-use std::{fs, time::Instant};
+use std::{fs, path::PathBuf, time::Instant};
 
 use anyhow::{bail, Context};
-use beholders::Proof;
+use beholders::{
+    commitment::TrustedSetup,
+    hashing::difficulty,
+    proof::CHUNK_SIZE,
+    util::{fft_settings, read_from_file, write_to_file},
+    Proof,
+};
 use clap::Parser;
 use humansize::{format_size, BINARY};
 use kzg::{
     // eip_4844::load_trusted_setup_filename_rust, // TRUSTED SETUP
-    types::{
-        fft_settings::FsFFTSettings,
-        fr::FsFr,
-        kzg_settings::FsKZGSettings, // TRUSTED SETUP
-    },
-    utils::generate_trusted_setup,
+    types::fr::FsFr,
 };
-use kzg_traits::{FFTSettings, Fr, KZGSettings};
+use kzg_traits::Fr;
 
 // const TRUSTED_SETUP_FILE: &str = "trusted_setup.txt"; // TRUSTED SETUP
 
 const NFISCH: usize = 10;
+
 #[derive(Parser)]
 struct Cli {
     /// The path to the file containing the data
     #[arg(index = 1)]
     data: std::path::PathBuf,
 
-    /// The numeber of indices to derive for each Schnorr transcript
+    /// The path where the commitment should be written
+    #[arg(index = 2)]
+    commitment: std::path::PathBuf,
+
+    /// The signature output path
+    #[arg(index = 3)]
+    signature: std::path::PathBuf,
+
+    /// The number of indices to derive for each Schnorr transcript
     #[arg(long, default_value_t = 4)]
     mvalue: usize,
 
@@ -34,13 +44,13 @@ struct Cli {
     #[arg(long)]
     bit_difficulty: Option<u32>,
 
+    /// Location of the trusted setup file.
+    #[arg(long)]
+    setup_file: PathBuf,
+
     /// Secret key as 32-byte hex string (big-endian). Random if not provided.
     #[arg(long)]
     secret_key: Option<String>, // Added secret-key option
-}
-
-fn difficulty(data_len: usize) -> u32 {
-    data_len.ilog2()
 }
 
 fn main() -> anyhow::Result<()> {
@@ -53,9 +63,8 @@ fn main() -> anyhow::Result<()> {
 
     let mvalue = args.mvalue;
 
-    // let data: &[u64] = bytemuck::try_cast_slice(&data).unwrap();
     println!("File size: {}", format_size(data.len(), BINARY));
-    let chunks = data.len() / 32;
+    let chunks = data.len() / CHUNK_SIZE;
     println!("Num chunks: {chunks}");
     let bit_difficulty = args.bit_difficulty.unwrap_or_else(|| difficulty(chunks));
 
@@ -89,30 +98,38 @@ fn main() -> anyhow::Result<()> {
 
     let start: Instant = Instant::now();
 
-    // Data has 2^{scale-1} chunks of 32 bytes
-    let secrets_exp = chunks.ilog2();
-    let scale = secrets_exp + 1;
-    println!("Generating trusted setup, 2^{secrets_exp} secrets, FFT scale={scale}...");
-    let secrets_len = chunks;
-    let (s1, s2, s3) = generate_trusted_setup(secrets_len, [0; 32]);
-    let fs = FsFFTSettings::new(scale as usize).unwrap();
-    let kzg_settings =
-        FsKZGSettings::new(&s1, &s2, &s3, &fs, kzg_traits::eth::FIELD_ELEMENTS_PER_CELL).unwrap();
-    // let kzg_settings =
-    //     load_trusted_setup_filename_rust(TRUSTED_SETUP_FILE).expect("loading trusted setup");
+    println!("Loading trusted setup...");
+    let fs = fft_settings(chunks).map_err(anyhow::Error::msg)?;
+    let trusted_setup: TrustedSetup = read_from_file(&args.setup_file)?;
+
+    println!(
+        "Trusted setup: {} {} {}",
+        trusted_setup.g1_monomial.len(),
+        trusted_setup.g1_lagrange.len(),
+        trusted_setup.g2_monomial.len()
+    );
+
+    println!("Building KZG settings...");
+    let kzg_settings = trusted_setup
+        .into_kzg_settings(&fs)
+        .map_err(anyhow::Error::msg)
+        .context("Loading trusted setup")?;
     let duration = start.elapsed();
     println!("Initialization time: {:?}", duration);
 
     println!("Proving...");
     let start: Instant = Instant::now();
 
-    let _proof = Proof::prove(&kzg_settings, sk, &data, NFISCH, bit_difficulty, mvalue)
+    let (proof, com) = Proof::prove(&kzg_settings, sk, &data, NFISCH, bit_difficulty, mvalue)
         .map_err(anyhow::Error::msg)
-        .context("KZG error")?
-        .context("Could not find solve the proof-of-work in the beholder signature")?;
+        .context("KZG error")?;
+    let proof =
+        proof.context("Could not find solve the proof-of-work in the beholder signature")?;
     let duration = start.elapsed();
     println!("Proving time: {:?}", duration);
-    // println!("Proof: {:?}", proof);
+
+    write_to_file(&args.commitment, &com)?;
+    write_to_file(&args.signature, &proof)?;
 
     Ok(())
 
