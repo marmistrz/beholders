@@ -10,7 +10,7 @@ bigger files, the setup should be generated as
 ```
 cargo run --bin setup --release -- --secrets N secrets.bin
 ```
-Where \(N = l/32 \) where \(l\) is the maximum size of the file in bytes.
+Where $N = \ell/32$ where $\ell$ is the maximum size of the file in bytes.
 
 ### Run prover
 In order to generate a beholder signature on the file `data.bin`, execute the following command:
