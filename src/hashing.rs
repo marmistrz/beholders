@@ -93,8 +93,8 @@ pub(crate) fn pow_pass(hash_output: &HashOutput, difficulty: u32) -> bool {
     hash_output[0].trailing_zeros() >= difficulty
 }
 
-pub fn difficulty(chunks: usize) -> u32 {
-    chunks.ilog2() + 3
+pub fn difficulty(chunks: usize, nfisch: usize) -> u32 {
+    5 + chunks.ilog2() - nfisch.ilog2()
 }
 
 #[cfg(test)]

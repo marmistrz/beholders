@@ -22,8 +22,12 @@ struct Cli {
     signature: PathBuf,
 
     /// The number of indices to derive for each Schnorr transcript
-    #[arg(long, default_value_t = 16)]
+    #[arg(long, default_value_t = 6)]
     mvalue: usize,
+
+    /// The number of Fischlin iterations parameter (default: 10)
+    #[arg(long, default_value_t = 10)]
+    nfisch: usize,
 
     /// The difficulty of the proof-of-work
     /// (default is log2(N) + 3)
@@ -45,7 +49,10 @@ fn main() -> anyhow::Result<()> {
     let pk = TG1::generator().mul(&sk);
 
     let chunks = args.data_len / CHUNK_SIZE;
-    let bit_difficulty = args.bit_difficulty.unwrap_or_else(|| difficulty(chunks));
+    let nfisch = args.nfisch;
+    let bit_difficulty = args
+        .bit_difficulty
+        .unwrap_or_else(|| difficulty(chunks, nfisch));
 
     println!("Loading trusted setup");
     let trusted_setup: TrustedSetup = read_from_file(&args.setup_file)?;

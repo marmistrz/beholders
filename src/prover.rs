@@ -18,8 +18,6 @@ use kzg_traits::Fr;
 
 // const TRUSTED_SETUP_FILE: &str = "trusted_setup.txt"; // TRUSTED SETUP
 
-const NFISCH: usize = 10;
-
 #[derive(Parser)]
 struct Cli {
     /// The path to the file containing the data
@@ -35,11 +33,15 @@ struct Cli {
     signature: std::path::PathBuf,
 
     /// The number of indices to derive for each Schnorr transcript
-    #[arg(long, default_value_t = 4)]
+    #[arg(long, default_value_t = 6)]
     mvalue: usize,
 
+    /// The number of Fischlin iterations parameter (default: 10)
+    #[arg(long, default_value_t = 10)]
+    nfisch: usize,
+
     /// The difficulty of the proof-of-work
-    /// (default is log2(N) + 3)
+    /// (default is 5 + log2(N) - log2(nfisch)),
     /// where N is the length in chunks of 32 bytes
     #[arg(long)]
     bit_difficulty: Option<u32>,
@@ -62,11 +64,14 @@ fn main() -> anyhow::Result<()> {
     }
 
     let mvalue = args.mvalue;
+    let nfisch = args.nfisch;
 
     println!("File size: {}", format_size(data.len(), BINARY));
     let chunks = data.len() / CHUNK_SIZE;
     println!("Num chunks: {chunks}");
-    let bit_difficulty = args.bit_difficulty.unwrap_or_else(|| difficulty(chunks));
+    let bit_difficulty = args
+        .bit_difficulty
+        .unwrap_or_else(|| difficulty(chunks, nfisch));
 
     // Handle secret key input (added logic)
     let sk = if let Some(hex_sk) = &args.secret_key {
@@ -93,7 +98,7 @@ fn main() -> anyhow::Result<()> {
 
     println!(
         "Parameters: nfisch: {}, d: {}, m: {}",
-        NFISCH, bit_difficulty, mvalue
+        nfisch, bit_difficulty, mvalue
     );
 
     let start: Instant = Instant::now();
@@ -120,7 +125,7 @@ fn main() -> anyhow::Result<()> {
     println!("Proving...");
     let start: Instant = Instant::now();
 
-    let (proof, com) = Proof::prove(&kzg_settings, sk, &data, NFISCH, bit_difficulty, mvalue)
+    let (proof, com) = Proof::prove(&kzg_settings, sk, &data, nfisch, bit_difficulty, mvalue)
         .map_err(anyhow::Error::msg)
         .context("KZG error")?;
     let proof =
