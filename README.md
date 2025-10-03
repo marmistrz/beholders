@@ -34,5 +34,5 @@ cargo run --bin verifier --release -- --public-key pk.bin --setup-file secrets.b
 ```
 cargo nextest run
 ```
-## Run benchmarks
+### Run benchmarks
 See [benches/README.md](benches/README.md)
