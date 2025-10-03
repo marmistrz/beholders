@@ -5,16 +5,12 @@ use beholders::{
     commitment::TrustedSetup,
     hashing::difficulty,
     proof::CHUNK_SIZE,
+    schnorr::SecretKey,
     util::{fft_settings, read_from_file, write_to_file},
     Proof,
 };
 use clap::Parser;
 use humansize::{format_size, BINARY};
-use kzg::{
-    // eip_4844::load_trusted_setup_filename_rust, // TRUSTED SETUP
-    types::fr::FsFr,
-};
-use kzg_traits::Fr;
 
 // const TRUSTED_SETUP_FILE: &str = "trusted_setup.txt"; // TRUSTED SETUP
 
@@ -50,9 +46,9 @@ struct Cli {
     #[arg(long)]
     setup_file: PathBuf,
 
-    /// Secret key as 32-byte hex string (big-endian). Random if not provided.
+    /// Path for the secret key.
     #[arg(long)]
-    secret_key: Option<String>, // Added secret-key option
+    secret_key: PathBuf,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -73,28 +69,7 @@ fn main() -> anyhow::Result<()> {
         .bit_difficulty
         .unwrap_or_else(|| difficulty(chunks, nfisch));
 
-    // Handle secret key input (added logic)
-    let sk = if let Some(hex_sk) = &args.secret_key {
-        // Strip optional 0x prefix
-        let hex_str = hex_sk.strip_prefix("0x").unwrap_or(hex_sk);
-        let bytes = hex::decode(hex_str).context("Failed to decode hex secret key")?;
-
-        // Validate length
-        if bytes.len() != 32 {
-            bail!("Secret key must be 32 bytes, got {}", bytes.len());
-        }
-
-        // Convert big-endian input to little-endian
-        let mut le_bytes = bytes.clone();
-        le_bytes.reverse();
-        let mut array = [0u8; 32];
-        array.copy_from_slice(&le_bytes);
-
-        FsFr::from_bytes(&array).map_err(|e| anyhow::anyhow!("Invalid secret key: {}", e))?
-    } else {
-        // Fallback to random generation
-        FsFr::rand()
-    };
+    let sk: SecretKey = read_from_file(&args.secret_key)?;
 
     println!(
         "Parameters: nfisch: {}, d: {}, m: {}",

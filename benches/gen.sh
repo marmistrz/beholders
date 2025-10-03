@@ -1,6 +1,9 @@
 #!/bin/bash
 set -e
-# Generate benchmark
+
+echo "==== Generating a keypair ===="
+cargo run --bin kgen --release -- --secret-key=sk.bin --public-key=pk.bin
+
 echo "==== Generating benchmark files ===="
 for size in 16 32 64 128 256 512 1024 2048; do
     count=$((size/4))

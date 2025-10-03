@@ -11,17 +11,23 @@ cargo run --bin setup --release -- --secrets N secrets.bin
 ```
 Where $N = \ell/32$ where $\ell$ is the maximum size of the file in bytes.
 
+### Run keygen
+To generate a keypair, run
+```
+cargo run --bin kgen --release -- --secret-key=sk.bin --public-key=pk.bin
+```
+
 ### Run prover
 In order to generate a beholder signature on the file `data.bin`, execute the following command:
 ```
-cargo run --bin prover --release -- --setup-file secrets.bin data.bin com.bin sig.bin
+cargo run --bin prover --release -- --secret-key sk.bin --setup-file secrets.bin data.bin com.bin sig.bin
 ```
 In this case, the setup is read from `secrets.bin`, the signature is saved as `sig.bin`,
 and the commitment is written to `com.bin`.
 ### Run verifier
 In order to verify the signature generated as above, run:
 ```
-cargo run --bin verifier --release -- --setup-file secrets.bin --data-len $(du -b data128.bin) com.bin sig.bin
+cargo run --bin verifier --release -- --public-key pk.bin --setup-file secrets.bin --data-len $(du -b data128.bin) com.bin sig.bin
 ```
 ## Developer guide
 ### Run tests

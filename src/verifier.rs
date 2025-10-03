@@ -1,15 +1,15 @@
 use std::path::PathBuf;
 
+use anyhow::bail;
 use beholders::{
     commitment::{Commitment, TrustedSetup},
     hashing::difficulty,
     proof::CHUNK_SIZE,
-    types::{TFr, TG1},
+    schnorr::PublicKey,
     util::{fft_settings, read_from_file},
     Proof,
 };
 use clap::Parser;
-use kzg_traits::{Fr, G1Mul, G1};
 
 #[derive(Parser)]
 struct Cli {
@@ -41,12 +41,15 @@ struct Cli {
     /// Location of the trusted setup file.
     #[arg(long)]
     setup_file: PathBuf,
+
+    /// Path for the public key.
+    #[arg(long)]
+    public_key: PathBuf,
 }
 
 fn main() -> anyhow::Result<()> {
     let args = Cli::parse();
-    let sk = TFr::from_u64(2137);
-    let pk = TG1::generator().mul(&sk);
+    let pk: PublicKey = read_from_file(&args.public_key)?;
 
     let chunks = args.data_len / CHUNK_SIZE;
     let nfisch = args.nfisch;
@@ -66,7 +69,7 @@ fn main() -> anyhow::Result<()> {
     let proof: Proof = read_from_file(&args.signature)?;
     let commitment: Commitment = read_from_file(&args.commitment)?;
 
-    proof
+    let output = proof
         .verify(
             &pk,
             &commitment,
@@ -76,7 +79,13 @@ fn main() -> anyhow::Result<()> {
             args.mvalue,
         )
         .expect("KZG error");
-
-    println!("Proof verified successfully");
-    Ok(())
+    match output {
+        true => {
+            println!("Proof verified successfully");
+            Ok(())
+        }
+        false => {
+            bail!("Proof verification failed")
+        }
+    }
 }

@@ -157,7 +157,7 @@ impl Proof {
         println!(
             "Passed {}/{} Fischlin iterations",
             passed,
-            self.fisch_iters.len()
+            self.fisch_iters.len(),
         );
 
         Ok(passed * 2 >= self.fisch_iters.len())

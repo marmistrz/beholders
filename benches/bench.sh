@@ -102,7 +102,7 @@ for size in 16 32 64 128 256 512 1024 2048; do
 
     # Trap SIGINT to delete output file if interrupted
     trap 'echo "Interrupted, deleting $out_file"; rm -f "$out_file"; exit 130' INT
-    cargo run --bin prover --release -- --setup-file secrets$N.bin data$size.bin com.bin sig.bin | tee "$out_file"
+    cargo run --bin prover --release -- --secret-key=sk.bin --setup-file secrets$N.bin data$size.bin com.bin sig.bin | tee "$out_file"
     trap - INT
   done
 done

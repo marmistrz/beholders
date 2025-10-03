@@ -3,9 +3,9 @@ use kzg_traits::{Fr, G1Mul, G1};
 use serde::{Deserialize, Serialize};
 
 /// Secret key for Schnorr signature
-pub(crate) type PublicKey = TG1;
+pub type PublicKey = TG1;
 /// Secret key for Schnorr signature
-pub(crate) type SecretKey = TFr;
+pub type SecretKey = TFr;
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub(crate) struct Schnorr {
