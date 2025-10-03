@@ -466,8 +466,8 @@ mod tests {
         let sk = SecretKey::from_u64(2137);
         let pk = g.mul(&sk);
 
-        let nfisch = 4;
-        let mvalue: usize = 16;
+        let nfisch = 32;
+        let mvalue: usize = 4;
         let (proof, com) = Proof::prove(&kzg_settings, sk, &data, nfisch, bit_difficulty, mvalue)
             .expect("KZG error");
 
