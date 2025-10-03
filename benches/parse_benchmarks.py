@@ -155,7 +155,7 @@ def main() -> Optional[pd.DataFrame]:
     ncols = df_final.shape[1] + 1  # +1 for index column
     col_format = "|".join(["c"] * ncols)
     output_file = script_dir / 'benchmark_results.tex'
-    df_final.to_latex(output_file, column_format=col_format, caption=caption, label="tab:benchmark_results")
+    df_final.to_latex(output_file, column_format=col_format)
 
     # Add a comment at the top of the LaTeX file
     with open(output_file, 'r+') as f:
