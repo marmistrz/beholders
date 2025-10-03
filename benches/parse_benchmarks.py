@@ -122,7 +122,7 @@ def main() -> Optional[pd.DataFrame]:
     df_averaged = grouped[['fk20_time_s', 'mining_time_s']].mean()
 
     # Add freshness period column (in seconds)
-    df_averaged['freshness'] = df_averaged['mining_time_s'] * 1e5
+    df_averaged['freshness'] = df_averaged['mining_time_s'] * 2 * 1e5
 
     # Custom compact formatting for freshness period: e.g. 5h20min
     def compact_timespan(seconds):
