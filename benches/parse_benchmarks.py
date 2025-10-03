@@ -10,7 +10,7 @@ import re
 import pandas as pd
 from pathlib import Path
 from typing import Optional, Dict, Union
-from humanfriendly import parse_size, parse_timespan
+from humanfriendly import parse_size, parse_timespan, format_timespan
 
 
 def parse_file_size(size_str: str) -> Optional[int]:
@@ -97,8 +97,7 @@ def main() -> Optional[pd.DataFrame]:
         return None
 
     print(f"Found {len(benchmark_files)} benchmark files:")
-    # for f in benchmark_files:
-    #     print(f"  - {f.name}")
+
 
     # Parse all files
     data = []
@@ -122,17 +121,41 @@ def main() -> Optional[pd.DataFrame]:
     # Calculate averages for timing metrics (excluding initialization time)
     df_averaged = grouped[['fk20_time_s', 'mining_time_s']].mean()
 
-    # Get sample counts for caption
-    sample_counts = grouped.size()
+    # Add freshness period column (in seconds)
+    df_averaged['freshness'] = df_averaged['mining_time_s'] * 1e5
+
+    # Custom compact formatting for freshness period: e.g. 5h20min
+    def compact_timespan(seconds):
+        units = [
+            ('d', 86400),
+            ('h', 3600),
+            ('min', 60),
+            ('s', 1),
+        ]
+        remaining = int(seconds)
+        result = []
+        for name, unit_seconds in units:
+            value, remaining = divmod(remaining, unit_seconds)
+            if value > 0:
+                result.append(f"{value}{name} ")
+            if len(result) == 2:
+                break
+        return ''.join(result) if result else '0s'
+
+    df_averaged['Freshness period'] = df_averaged['freshness'].apply(compact_timespan)
 
     # Set proper column names
     df_averaged.index.name = 'File Size [KiB]'
-    df_averaged.columns = ['FK20 Time [s]', 'Mining Time [s]']
+    df_averaged = df_averaged[['fk20_time_s', 'mining_time_s', 'Freshness period']]
+    df_averaged.columns = ['FK20 Time [s]', 'Mining Time [s]', 'Freshness period']
 
     print("\n" + "="*60)
     print("BENCHMARK RESULTS SUMMARY (AVERAGED)")
     print("="*60)
     print(df_averaged.to_string())
+
+    # Get sample counts for caption and validation
+    sample_counts = grouped.size()
 
     # Check if all file sizes have the same number of samples
     unique_counts = sample_counts.unique()
@@ -149,7 +172,7 @@ def main() -> Optional[pd.DataFrame]:
     df_final = df_averaged
 
     # Create caption with sample information
-    caption = f"Benchmark results (averages over {sample_count} samples)."
+    caption = f"Benchmark results (averaged over {sample_count} samples per file size). Freshness period = Mining Time [s] × 10⁵."
 
     # Save to LaTeX
     ncols = df_final.shape[1] + 1  # +1 for index column

@@ -1,12 +1,11 @@
 # Beholders
 ## Usage guide
-To simplify the process, the proof-of-concept uses a hardcoded keypair.
-For real-life use cases, these should be generated separately and read from a file.
+Since the beacon value does not influence the performance of the implementation, we omitted it for simplicity.
 
 ### Generating trusted setup
 The trusted setup established by the Ethereum community in their KZG ceremony can only
 support beholder signatures for files up to 4096 chunks, i.e., 131072 bytes. Since we aim to support
-bigger files, the setup should be generated as
+bigger files, the setup should be generated as:
 ```
 cargo run --bin setup --release -- --secrets N secrets.bin
 ```
