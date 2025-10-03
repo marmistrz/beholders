@@ -88,7 +88,7 @@ if ! [ -d res ]; then
 fi
 
 # Run benchmarks
-for size in 128 256 512 1024 2048; do
+for size in 16 32 64 128 256 512 1024 2048; do
   for it in $(seq 1 $num_iterations); do
     out_file="res/out${size}-${it}.txt"
     if $continue_mode && [ -f "$out_file" ]; then

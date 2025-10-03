@@ -5,3 +5,4 @@ data.bin
 *.bin
 benches/results.txt
 *.tex
+res.bak

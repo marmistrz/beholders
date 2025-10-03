@@ -9,14 +9,13 @@ a pandas DataFrame with file size, initialization time, FK20 time, and proving t
 import re
 import pandas as pd
 from pathlib import Path
-from typing import Optional, Dict, Any, Union, cast
-from humanfriendly import parse_size
+from typing import Optional, Dict, Union
+from humanfriendly import parse_size, parse_timespan
 
 
 def parse_file_size(size_str: str) -> Optional[int]:
     """
     Parse file size string like '128 KiB' or '1 MiB' and return size in KiB as integer.
-    Uses humanfriendly.parse_size for robust parsing.
     """
     try:
         # parse_size returns bytes, convert to KiB
@@ -28,12 +27,12 @@ def parse_file_size(size_str: str) -> Optional[int]:
 
 def parse_time(time_str: str) -> Optional[float]:
     """
-    Parse time string like '7.212863475s' and return time in seconds as float.
+    Parse time string and return time in seconds as float.
     """
-    match = re.search(r'(\d+\.?\d*)s', time_str)
-    if match:
-        return float(match.group(1))
-    return None
+    try:
+        return float(parse_timespan(time_str))
+    except Exception:
+        return None
 
 
 def parse_benchmark_file(filepath: Union[str, Path]) -> Optional[Dict[str, Union[int, float]]]:
@@ -98,8 +97,8 @@ def main() -> Optional[pd.DataFrame]:
         return None
 
     print(f"Found {len(benchmark_files)} benchmark files:")
-    for f in benchmark_files:
-        print(f"  - {f.name}")
+    # for f in benchmark_files:
+    #     print(f"  - {f.name}")
 
     # Parse all files
     data = []
