@@ -6,12 +6,13 @@ This script reads benchmark result files from the res/ directory and creates
 a pandas DataFrame with file size, initialization time, FK20 time, and proving time.
 """
 
-import re
-import pandas as pd
-from pathlib import Path
-from typing import Optional, Dict, Union
-from humanfriendly import parse_size, parse_timespan, format_timespan
 import argparse
+import re
+from pathlib import Path
+from typing import Dict, Optional, Union
+
+import pandas as pd
+from humanfriendly import format_timespan, parse_size, parse_timespan
 
 FILE_SIZE_COLUMN = "File Size [KiB]"
 
@@ -25,7 +26,6 @@ def parse_file_size(size_str: str) -> Optional[int]:
         size_bytes = parse_size(size_str)
         return int(size_bytes // 1024)
     except Exception:
-
         return None
 
 
@@ -238,7 +238,7 @@ def main() -> None:
         output_file = script_dir / "benchmark_results_prover.tex"
     else:
         output_file = script_dir / "benchmark_results_verifier.tex"
-    df_final.to_latex(output_file, column_format=col_format)
+    df_final.to_latex(output_file, column_format=col_format, float_format="%.2f")
 
     # Add a comment at the top of the LaTeX file
     with open(output_file, "r+") as f:
