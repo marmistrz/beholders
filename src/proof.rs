@@ -1,6 +1,8 @@
 use itertools::izip;
 use kzg_traits::{Fr, G1Mul, KZGSettings, G1};
-use rayon::iter::{IntoParallelIterator, ParallelIterator};
+use rayon::iter::{
+    IndexedParallelIterator, IntoParallelIterator, IntoParallelRefIterator, ParallelIterator,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::check;
@@ -132,7 +134,7 @@ impl Proof {
         let prelude = self.prelude(pk, com);
         let verifications: Vec<_> = self
             .fisch_iters
-            .iter()
+            .par_iter()
             .enumerate()
             .map(|(fisch_iter, base_proof)| {
                 base_proof.verify(

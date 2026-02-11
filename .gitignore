@@ -4,5 +4,7 @@ res
 data.bin
 *.bin
 benches/results.txt
+benches/prover
+benches/verifier
 *.tex
 res.bak

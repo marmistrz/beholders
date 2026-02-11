@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::time::Instant;
 
 use anyhow::bail;
 use beholders::{
@@ -57,18 +58,21 @@ fn main() -> anyhow::Result<()> {
         .bit_difficulty
         .unwrap_or_else(|| difficulty(chunks, nfisch));
 
+
     println!("Loading trusted setup");
+    let setup_start = Instant::now();
     let trusted_setup: TrustedSetup = read_from_file(&args.setup_file)?;
     let fs = fft_settings(chunks).map_err(anyhow::Error::msg)?;
     let kzg_settings = trusted_setup
         .into_kzg_settings(&fs)
         .map_err(anyhow::Error::msg)?;
-
-    println!("Done loading trusted setup");
+    let setup_duration = setup_start.elapsed();
+    println!("Done loading trusted setup (took: {:.3?})", setup_duration);
 
     let proof: Proof = read_from_file(&args.signature)?;
     let commitment: Commitment = read_from_file(&args.commitment)?;
 
+    let verify_start = Instant::now();
     let output = proof
         .verify(
             &pk,
@@ -79,6 +83,8 @@ fn main() -> anyhow::Result<()> {
             args.mvalue,
         )
         .expect("KZG error");
+    let verify_duration = verify_start.elapsed();
+    println!("Verification took: {:.3?}", verify_duration);
     match output {
         true => {
             println!("Proof verified successfully");

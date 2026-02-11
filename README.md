@@ -27,7 +27,7 @@ and the commitment is written to `com.bin`.
 ### Run verifier
 In order to verify the signature generated as above, run:
 ```
-cargo run --bin verifier --release -- --public-key pk.bin --setup-file secrets.bin --data-len $(du -b data128.bin) com.bin sig.bin
+cargo run --bin verifier --release -- --public-key pk.bin --setup-file secrets.bin --data-len $(du -b data.bin | cut -f 1) com.bin sig.bin
 ```
 ## Developer guide
 ### Run tests
